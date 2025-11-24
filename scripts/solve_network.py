@@ -45,6 +45,8 @@ from linopy.remote.oetc import OetcCredentials, OetcHandler, OetcSettings
 from pypsa.descriptors import get_activity_mask
 from pypsa.descriptors import get_switchable_as_dense as get_as_dense
 
+from scripts.ngv_scripts.fbmc import add_fbmc_constraints
+
 from scripts._benchmark import memory_logger
 from scripts._helpers import (
     PYPSA_V1,
@@ -1351,6 +1353,9 @@ def extra_functionality(
             renewable_carriers_tyndp,
         )
 
+    if config["fbmc"]:
+        add_fbmc_constraints(n)
+
     if n.params.custom_extra_functionality:
         source_path = n.params.custom_extra_functionality
         assert os.path.exists(source_path), f"{source_path} does not exist"
@@ -1556,6 +1561,7 @@ if __name__ == "__main__":
         limit_max_growth=snakemake.params.get("sector", {}).get("limit_max_growth"),
     )
 
+    breakpoint()
     logging_frequency = snakemake.config.get("solving", {}).get(
         "mem_logging_frequency", 30
     )
