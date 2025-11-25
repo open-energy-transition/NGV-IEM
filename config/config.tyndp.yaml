@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: CC0-1.0
 
 run:
-  prefix: "tyndp"
+  prefix: "tyndp-test"
   name: "all"
   scenarios:
     enable: true
@@ -22,7 +22,6 @@ scenario:
   planning_horizons:
   - 2030
 
-# countries: ['AT',  'BE',   'CZ',  'DE', 'DK', 'FI', 'FR', 'HR', 'HU', 'LU', 'NL', 'NO', 'PL', 'RO', 'SE', 'SI', 'SK']
 countries: ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CZ', 'CY', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'ME', 'MK', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK']
 
 snapshots:
@@ -286,4 +285,4 @@ plotting:
       flow_factor: 25
 
 benchmarking:
-  enable: true
+  enable: false
