@@ -8,39 +8,38 @@ import logging
 import numpy as np
 import pandas as pd
 
-PTDF_PATH = 'data/fbmc/FB domains/FB-Domain-CORE_Full_ERAA2024.xlsx'
+PTDF_PATH = 'data/fbmc/FB-Domain-CORE_Merged.xlsx'
 PTDF_PATH_NORDIC = 'data/fbmc/FB domains/FB-Domain-NORDIC_ERAA2024.xlsx'
-YEAR = 2026
-SNAPSHOT = 6
-WEATHER_SCENARIO = 'WS1'
+RAM_YEAR = 2030
+WEATHER_YEAR = 2009
+SNAPSHOT = 1
 
-def load_ptdf_and_ram_matrices(ptdf_path=PTDF_PATH, ptdf_path_nordic=PTDF_PATH_NORDIC, year=YEAR):
+def load_ptdf_and_ram_matrices(ptdf_path=PTDF_PATH, ram_year=RAM_YEAR):
 	"""
 	Loads the PTDF matrix (weights for each flow through each line/link)
 	and the RAM vector that defines the max sum of weighted flows in the network
 	"""
-	ptdf = pd.read_excel(ptdf_path, header=[0,1], sheet_name=f"PTDF_{year}")
-	ptdf_nordic = pd.read_excel(ptdf_path_nordic, header=[0,1], sheet_name=f'PTDF_{year}')
+	ptdf = pd.read_excel(ptdf_path, header=[0,1], sheet_name=f"PTDF")
 	ptdf = ptdf.set_index(ptdf.columns.values[:3].tolist())
 
-	ram = pd.read_excel(ptdf_path, sheet_name=f'RAM_{year}', skiprows=1, index_col=0)
-
+	ram = pd.read_excel(ptdf_path, sheet_name=f'RAM_{ram_year}', skiprows=3, index_col=0)
+	# ram.fillna(np.inf, inplace=True)
 	# not sure if we want to use Ukraine?
 	ptdf.drop([col for col in ptdf.columns if 'UA' in col], axis=1, inplace=True)
 
 	# # use the sum of the two GB-FR weights
 	# ptdf = ptdf.T.groupby(ptdf.columns.str[:9]).sum().T
 
-	return ptdf['PTDF*_AHC,SZ'].droplevel(2), ptdf_nordic['PTDF*_AHC,SZ'], ram
+	return ptdf['PTDF*_AHC,SZ'].droplevel(2), ram
 
-def get_weather_assignments(ptdf_path=PTDF_PATH, year=YEAR):
+def get_weather_assignments(ptdf_path=PTDF_PATH, weather_year=WEATHER_YEAR, timestep=SNAPSHOT):
 	weather_assignments = pd.read_excel(ptdf_path, sheet_name=f"FB Domain Assignment")
-	weather_assignments = weather_assignments[weather_assignments.Year == year]
+	weather_assignments = weather_assignments[f"CY_{weather_year}"]
 
-	return weather_assignments.iloc[::SNAPSHOT][WEATHER_SCENARIO]
+	return weather_assignments.iloc[::timestep]
 
 def add_fbmc_constraints(n):
-	ptdf, ptdf_nordic, ram = load_ptdf_and_ram_matrices()
+	ptdf, ram = load_ptdf_and_ram_matrices()
 
 	pypsa_ptdf_map = {
 			'GB00':'UK00',
@@ -50,7 +49,7 @@ def add_fbmc_constraints(n):
 	    	}
 
 	flow_map = {}
-	all_ptdf_cols = ptdf.columns.tolist() + ptdf_nordic.columns.tolist()
+	all_ptdf_cols = ptdf.columns.tolist()
 	for column in all_ptdf_cols:
 	    # parse the bus names
 	    buses = [column[:4], column[5:9]]
@@ -61,20 +60,19 @@ def add_fbmc_constraints(n):
 	    flow_map.update({column:idx})
 
 	wa = get_weather_assignments()
-	wa_nordic = get_weather_assignments(ptdf_path=PTDF_PATH_NORDIC)
 
 	seasons = wa.unique()
 	# get all indices for hours that align with each weather season
+	# breakpoint()
 	wa_map = {season:wa[wa==season].index for season in seasons}
-	wa_map.update({season:wa_nordic[wa_nordic==season].index for season in seasons})
 
 	flow_vector = [n.model['Link-p'].sel(Link=flow_map[k]) for k in all_ptdf_cols]
 
 	for season in seasons:
-		for cnec in ptdf.loc[season].index.get_level_values(0):
-			rhs = ram[season]
-			
-			for hr in wa_map[season]:
-				lhs = ptdf.loc[season] * np.array([flow[hr] for flow in flow_vector]) 
+		rhs = ram[str(season)].dropna()
+		
+		for hr in wa_map[season]:
+			# is there a more elegant way to deal with a ValueError? for some reason ptdf.loc * [flow] is failing to do matrix mult
+			lhs = ptdf.loc[season] @ np.array([flow[hr] for flow in flow_vector]) 
 
-				n.model.add_constraints(lhs <= rhs, name=f"PTDF-Link-{season}-{hr}")
+			n.model.add_constraints(lhs <= rhs, name=f"PTDF-Link-{season}-{hr}")
