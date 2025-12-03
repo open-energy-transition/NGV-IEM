@@ -7,6 +7,7 @@ import logging
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 PTDF_PATH = 'data/fbmc/FB-Domain-CORE_Merged.xlsx'
 PTDF_PATH_NORDIC = 'data/fbmc/FB domains/FB-Domain-NORDIC_ERAA2024.xlsx'
@@ -69,10 +70,33 @@ def add_fbmc_constraints(n):
 	flow_vector = [n.model['Link-p'].sel(Link=flow_map[k]) for k in all_ptdf_cols]
 
 	for season in seasons:
+		# in the 2023 merged data not all seasons have the same number of CNECs for some reason
 		rhs = ram[str(season)].dropna()
 		
 		for hr in wa_map[season]:
-			# is there a more elegant way to deal with a ValueError? for some reason ptdf.loc * [flow] is failing to do matrix mult
-			lhs = ptdf.loc[season] @ np.array([flow[hr] for flow in flow_vector]) 
+			# is there a more elegant way to deal with a ValueError? for some reason ptdf.loc * [flow for flow] is failing to do matrix mult
+			flow_col = [flow[hr] for flow in flow_vector]
 
+			link_names = ptdf.loc[season].reset_index(drop=True).columns
+			flow_vars_series = pd.Series(flow_col, index=link_names)
+
+			
+
+			lhs_series = ptdf.loc[season].reset_index(drop=True).dot(flow_vars_series)
+			# In Pdb:
+			# 1. Get the list of index tuples
+			old_index_values = lhs_series.index.tolist()
+
+			# 2. Extract the second element (the CNEC_ID) from each tuple
+			cnec_id_values = [idx[1] if isinstance(idx, tuple) else idx for idx in old_index_values]
+			
+			# 3. Apply the simple, single-level index back to the Series
+			lhs_series.index = cnec_id_values
+			rhs_aligned = rhs.reindex(lhs_series.index)
+			rhs_aligned.index = cnec_id_values # Use the same list of CNEC_IDs
+
+
+			lhs_xarray = xr.DataArray(lhs_series)
+			rhs_xarray = xr.DataArray(rhs_aligned)
+			breakpoint()
 			n.model.add_constraints(lhs <= rhs, name=f"PTDF-Link-{season}-{hr}")
