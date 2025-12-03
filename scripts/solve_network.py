@@ -45,8 +45,6 @@ from linopy.remote.oetc import OetcCredentials, OetcHandler, OetcSettings
 from pypsa.descriptors import get_activity_mask
 from pypsa.descriptors import get_switchable_as_dense as get_as_dense
 
-from scripts.ngv_scripts.fbmc import add_fbmc_constraints
-
 from scripts._benchmark import memory_logger
 from scripts._helpers import (
     PYPSA_V1,
@@ -55,6 +53,7 @@ from scripts._helpers import (
     set_scenario_config,
     update_config_from_wildcards,
 )
+from scripts.ngv_scripts.fbmc import add_fbmc_constraints
 
 logger = logging.getLogger(__name__)
 
