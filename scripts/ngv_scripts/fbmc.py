@@ -3,76 +3,264 @@
 #
 # SPDX-License-Identifier: MIT
 
-import logging
+import re
 
-import numpy as np
 import pandas as pd
+import pypsa
 
-PTDF_PATH = 'data/fbmc/FB-Domain-CORE_Merged.xlsx'
-PTDF_PATH_NORDIC = 'data/fbmc/FB domains/FB-Domain-NORDIC_ERAA2024.xlsx'
+PTDF_PATH = "data/fbmc/FB-Domain-CORE_Merged.xlsx"
+PTDF_PATH_NORDIC = "data/fbmc/FB domains/FB-Domain-NORDIC_ERAA2024.xlsx"
 RAM_YEAR = 2030
 WEATHER_YEAR = 2009
 SNAPSHOT = 1
 
-def load_ptdf_and_ram_matrices(ptdf_path=PTDF_PATH, ram_year=RAM_YEAR):
-	"""
-	Loads the PTDF matrix (weights for each flow through each line/link)
-	and the RAM vector that defines the max sum of weighted flows in the network
-	"""
-	ptdf = pd.read_excel(ptdf_path, header=[0,1], sheet_name=f"PTDF")
-	ptdf = ptdf.set_index(ptdf.columns.values[:3].tolist())
 
-	ram = pd.read_excel(ptdf_path, sheet_name=f'RAM_{ram_year}', skiprows=3, index_col=0)
-	# ram.fillna(np.inf, inplace=True)
-	# not sure if we want to use Ukraine?
-	ptdf.drop([col for col in ptdf.columns if 'UA' in col], axis=1, inplace=True)
+def load_ptdf(
+    fp: str, sheet_name: str = "PTDF", drop_columns_regex: list[str] = [r".*UA.*"]
+) -> pd.DataFrame:
+    """
+    Load PTDF matrix from Excel file.
 
-	# # use the sum of the two GB-FR weights
-	# ptdf = ptdf.T.groupby(ptdf.columns.str[:9]).sum().T
+    PTDF matrix contains the weights for each flow through each
+    line/link, by each critical network element component (CNEC).
 
-	return ptdf['PTDF*_AHC,SZ'].droplevel(2), ram
+    Parameters
+    ----------
+    fp : str
+        File path to the Excel file containing the PTDF matrix.
+    sheet_name : str, optional
+        Name of the sheet in the Excel file to read the PTDF matrix from.
+        Default is "PTDF".
+    drop_columns_regex : list[str], optional
+        List of regex patterns to identify columns to drop from the PTDF matrix.
+        Default is [r".*UA.*"] to drop columns related to Ukraine.
+    """
 
-def get_weather_assignments(ptdf_path=PTDF_PATH, weather_year=WEATHER_YEAR, timestep=SNAPSHOT):
-	weather_assignments = pd.read_excel(ptdf_path, sheet_name=f"FB Domain Assignment")
-	weather_assignments = weather_assignments[f"CY_{weather_year}"]
+    ptdf: pd.DataFrame = pd.read_excel(fp, header=[0, 1], sheet_name=sheet_name)
+    ptdf = ptdf.rename(
+        columns={
+            "FB_ID": "FB Domain",
+            "CNEC_ID": "CNEC_ID",
+        }
+    )
 
-	return weather_assignments.iloc[::timestep]
+    # Select the right columns and drop multiindex level
+    ptdf = ptdf.loc[
+        :,
+        [
+            (col[0], col[1])
+            for col in ptdf.columns.values
+            if col[0] in ["Type", "PTDF*_AHC,SZ"]
+        ],
+    ]
+    ptdf = ptdf.droplevel(0, axis=1)
 
-def add_fbmc_constraints(n):
-	ptdf, ram = load_ptdf_and_ram_matrices()
+    # Replacement of not-needed columns based on regex patterns
+    drop_columns = []
+    for regex in drop_columns_regex:
+        drop_columns.extend([col for col in ptdf.columns if re.match(regex, col)])
+    ptdf = ptdf.drop(columns=drop_columns)
 
-	pypsa_ptdf_map = {
-			'GB00':'UK00',
-	    	'DEOH002':'DEKF', # uses Hub, for Kriegers Flak (KF) offshore wind park
-	    	'DKW1':'DKKF',
-	    	'NOS0':'NOS2'
-	    	}
+    # Rename columns headers as the PTDF data uses slightly different bus naming than the TYNDP model
+    bus_renaming = {
+        "GB00": "UK00",
+        "DEOH002": "DEKF",  # TODO Check again, DEKF exists in open-TYNDP and in PTDF org data and DEOH002 does not; # uses Hub, for Kriegers Flak (KF) offshore wind park
+        "DKW1": "DKKF",  # TODO Check again, DKW1 exists in open-TYNDP and in PTDF org data
+        "NOS0": "NOS2",  # TODO Check again, NOS0 exists in open-TYNDP and in PTDF org data
+    }
+    # TODO: what about UK00-FR00_1	UK00-FR00_2
+    # TODO: What about the double entries for IE-FR? (Celtic link, not build yet)
 
-	flow_map = {}
-	all_ptdf_cols = ptdf.columns.tolist()
-	for column in all_ptdf_cols:
-	    # parse the bus names
-	    buses = [column[:4], column[5:9]]
-	    for k, v in pypsa_ptdf_map.items():
-	    	buses = [k if bus == v else bus for bus in buses]
-	    idx = n.links[n.links.carrier.str.contains('DC')][n.links.bus0.str.contains(buses[0])][n.links.bus1.str.contains(buses[1])].index.values
-	    
-	    flow_map.update({column:idx})
+    ptdf = ptdf.rename(
+        columns={
+            old_col: old_col.replace(org_bus, new_bus)
+            for new_bus, org_bus in bus_renaming.items()
+            for old_col in ptdf.columns
+            if org_bus in old_col
+        }
+    )
 
-	wa = get_weather_assignments()
+    # Turn into long format with MultiIndex
+    ptdf = ptdf.melt(
+        id_vars=["FB Domain", "CNEC_ID"],
+        var_name="line",
+        value_name="PTDF",
+    )
 
-	seasons = wa.unique()
-	# get all indices for hours that align with each weather season
-	# breakpoint()
-	wa_map = {season:wa[wa==season].index for season in seasons}
+    # Split "line" into "from" and "to" bus columns
+    ptdf["from"] = ptdf["line"].str.split("-").str[0].str[:4]
+    ptdf["to"] = ptdf["line"].str.split("-").str[1].str[:4]
 
-	flow_vector = [n.model['Link-p'].sel(Link=flow_map[k]) for k in all_ptdf_cols]
+    # Reorder columns
+    ptdf = ptdf[["FB Domain", "CNEC_ID", "from", "to", "line", "PTDF"]]
 
-	for season in seasons:
-		rhs = ram[str(season)].dropna()
-		
-		for hr in wa_map[season]:
-			# is there a more elegant way to deal with a ValueError? for some reason ptdf.loc * [flow] is failing to do matrix mult
-			lhs = ptdf.loc[season] @ np.array([flow[hr] for flow in flow_vector]) 
+    return ptdf
 
-			n.model.add_constraints(lhs <= rhs, name=f"PTDF-Link-{season}-{hr}")
+
+def load_ram(fp: str, sheet_name: str = "RAM_2030") -> pd.DataFrame:
+    """
+    Load RAM matrix from Excel file.
+
+    RAM matrix defines the remaining available margin per CNEC.
+
+    Parameters
+    ----------
+    fp : str
+        File path to the Excel file containing the RAM matrix.
+    sheet_name : str, optional
+        Name of the sheet in the Excel file to read the RAM matrix from.
+        Default is "RAM_2030" for 2030's RAM values.
+    """
+    ram = pd.read_excel(fp, sheet_name=sheet_name, skiprows=3)
+    ram = ram.melt(id_vars=["CNEC_ID"], var_name="FB Domain", value_name="RAM")
+
+    ram = ram.astype({"FB Domain": int})
+
+    return ram
+
+
+def load_weather_assignments(
+    fp: str,
+    sheet_name: str = "FB Domain Assignment",
+    snapshots: pd.DatetimeIndex = None,
+) -> pd.Series:
+    """
+    Load weather assignments between FB domains and weather year/timestep from Excel file.
+
+    The RAM values are provided for different weather situations (seasons).
+    The mapping between hours of the year and weather year to the RAM values
+    is stored separately in the weather assignments.
+    This function loads the correct weather assignments for the specified year.
+
+    Parameters
+    ----------
+    fp : str
+        File path to the Excel file containing the weather assignments.
+    sheet_name : str, optional
+        Name of the sheet in the Excel file to read the weather assignments from.
+        Default is "FB Domain Assignment".
+    snapshots : pd.DatetimeIndex, optional
+        DatetimeIndex of snapshots to filter the weather assignments to.
+        If None, all snapshots are returned. Default is None.
+
+    Returns
+    -------
+    pd.Series
+       Series containing the weather assignments for the specified year and of the specified timestep.
+    """
+
+    weather_assignments: pd.DataFrame = pd.read_excel(fp, sheet_name=sheet_name)
+
+    # Drop unnecessary columns
+    weather_assignments = weather_assignments.drop(columns=["Year"])
+
+    # Rename columns from "CY_<YYYY>" to "<YYYY>" for easier access
+    weather_assignments = weather_assignments.rename(
+        columns={
+            col: col.replace("CY_", "")
+            for col in weather_assignments.columns
+            if col.startswith("CY_")
+        }
+    )
+
+    # Turn weather year columns into rows
+    weather_assignments = weather_assignments.melt(
+        id_vars=["Time_step", "Month", "Day", "Hour"],
+        var_name="Year",
+        value_name="FB Domain",
+    )
+
+    # Counting of hours starts at 1, adjust to start at 0 to create proper datetime index
+    weather_assignments["Hour"] = weather_assignments["Hour"] - 1
+
+    # Turn columns into datetime index
+    weather_assignments["snapshot"] = pd.to_datetime(
+        weather_assignments[["Year", "Month", "Day", "Hour"]]
+    )
+    weather_assignments = weather_assignments.set_index("snapshot")
+
+    if not snapshots.empty:
+        # Select requested timesteps only
+        weather_assignments = weather_assignments.loc[snapshots]
+
+    return weather_assignments["FB Domain"]
+
+
+def add_fbmc_constraints(n: pypsa.Network, fp: str = PTDF_PATH) -> None:
+    """
+    Add the FBMC constraints to the pypsa.Network model.
+
+    Function is currently tailored towards the PTDF matrix and RAM values from ERAA2023,
+    can be downloaded from https://eepublicdownloads.blob.core.windows.net/public-cdn-container/clean-documents/sdc-documents/ERAA/2023/FB-Domain-CORE_Merged.xlsx .
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The pypsa.Network object to which the FBMC constraints will be added.
+    fp : str, optional
+        File path to the Excel file containing the FBMC data.
+        Needs to contain the PTDF matrix, RAM matrix, and weather assignments.
+    """
+
+    ptdf = load_ptdf(fp)
+    ram = load_ram(fp, sheet_name=f"RAM_{RAM_YEAR}")
+    wa = load_weather_assignments(fp, snapshots=n.snapshots)
+
+    # Map RAM values to weather seasons
+    ram_snapshoted = (
+        wa.to_frame()
+        .reset_index()
+        .merge(
+            ram,
+            left_on=["FB Domain"],
+            right_on=["FB Domain"],
+            how="left",
+        )
+    )
+
+    # Map pypsa.Network links that are related to DC and their names (index) to PTDF line names where bus0=from and bus1=to
+    links = (
+        n.components.links.static.query("`carrier`.str.startswith('DC')")[
+            ["bus0", "bus1"]
+        ]
+        .reset_index()
+        .rename(columns={"name": "link_name"})
+    )
+    ptdf = ptdf.merge(
+        links, left_on=["from", "to"], right_on=["bus0", "bus1"], how="left"
+    )
+
+    # Map PTDF values to seasonal values for RAM
+    ptdf_snapshoted = (
+        wa.to_frame()
+        .reset_index()
+        .merge(
+            ptdf,
+            left_on=[
+                "FB Domain",
+            ],
+            right_on=[
+                "FB Domain",
+            ],
+            how="left",
+        )
+    )
+
+    ds = (
+        ptdf_snapshoted.dropna(subset=["link_name"])  # Why necessary?)
+        .drop_duplicates(subset=["CNEC_ID", "snapshot", "link_name"])  # Why necessary?
+        .set_index(["CNEC_ID", "snapshot", "link_name"])["PTDF"]
+        .to_xarray()
+    )
+    ds = ds.rename({"link_name": "name"})
+
+    # Casting to xarray creates NaN values, need to fill those entries with 0
+    ds = ds.fillna(0)
+
+    lhs = ds * n.model["Link-p"].sel(name=ds["name"])
+    # Group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
+    lhs = lhs.sum(dim="name")
+
+    rhs = ram_snapshoted.set_index(["CNEC_ID", "snapshot"])["RAM"].to_xarray().fillna(0)
+
+    n.model.add_constraints(lhs <= rhs, name="PTDF-RAM-constraints")
