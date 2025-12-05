@@ -1,0 +1,5 @@
+scenarios:
+  status_quo:
+    network: "../../resources/NT-1H-20251124/networks/base_s_all___2030.nc"
+  iem:
+    network: "../../resources/NT-1H-20251124/networks/base_s_all___2040.nc"
