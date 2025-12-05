@@ -65,11 +65,7 @@ def load_ptdf(
     bus_renaming = {
         "GB00": "UK00",
         "DEOH002": "DEKF",  # TODO Check again, DEKF exists in open-TYNDP and in PTDF org data and DEOH002 does not; # uses Hub, for Kriegers Flak (KF) offshore wind park
-        "DKW1": "DKKF",  # TODO Check again, DKW1 exists in open-TYNDP and in PTDF org data
-        "NOS0": "NOS2",  # TODO Check again, NOS0 exists in open-TYNDP and in PTDF org data
     }
-    # TODO: what about UK00-FR00_1	UK00-FR00_2
-    # TODO: What about the double entries for IE-FR? (Celtic link, not build yet)
 
     ptdf = ptdf.rename(
         columns={
