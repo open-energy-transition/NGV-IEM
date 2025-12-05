@@ -4,7 +4,7 @@ import pandas as pd
 
 
 #-------- Load solved network -----#
-n = pypsa.Network(snakemake.input.network)
+n = pypsa.Network(snakemake.input[0])
 
 #------- Filter GB interconnections----------#
 
