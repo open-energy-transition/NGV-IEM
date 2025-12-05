@@ -26,9 +26,7 @@ rule add_existing_baseyear:
         busmap=resources("busmap_base_s_{clusters}.csv"),
         clustered_pop_layout=resources("pop_layout_base_s_{clusters}.csv"),
         costs=lambda w: resources(
-            "costs_{}.csv".format(
-                config_provider("scenario", "planning_horizons", 0)(w)
-            )
+            f"costs_{config_provider("scenario", "planning_horizons",0)(w)}_processed.csv"
         ),
         cop_profiles=resources("cop_profiles_base_s_{clusters}_{planning_horizons}.nc"),
         existing_heating_distribution=resources(
@@ -55,8 +53,6 @@ rule add_existing_baseyear:
         benchmarks(
             "add_existing_baseyear/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
         )
-    conda:
-        "../envs/environment.yaml"
     script:
         "../scripts/add_existing_baseyear.py"
 
@@ -93,6 +89,14 @@ rule add_brownfield:
         ),
         offshore_hubs_tyndp=config_provider("sector", "offshore_hubs_tyndp", "enable"),
         carriers_tyndp=config_provider("electricity", "tyndp_renewable_carriers"),
+        tyndp_conventional_carriers=config_provider(
+            "electricity", "tyndp_conventional_carriers"
+        ),
+        hydrogen_fuel_cell=config_provider("sector", "hydrogen_fuel_cell"),
+        hydrogen_turbine=config_provider("sector", "hydrogen_turbine"),
+        group_tyndp_conventionals=config_provider(
+            "electricity", "group_tyndp_conventionals"
+        ),
     input:
         unpack(input_profile_tech_brownfield),
         unpack(input_profile_tech_brownfield_pecd),
@@ -102,8 +106,9 @@ rule add_brownfield:
             "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc"
         ),
         network_p=solved_previous_horizon,  #solved network at previous time step
-        costs=resources("costs_{planning_horizons}.csv"),
+        costs=resources("costs_{planning_horizons}_processed.csv"),
         cop_profiles=resources("cop_profiles_base_s_{clusters}_{planning_horizons}.nc"),
+        carrier_mapping="data/tyndp_technology_map.csv",
     output:
         resources(
             "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_brownfield.nc"
@@ -119,8 +124,6 @@ rule add_brownfield:
         benchmarks(
             "add_brownfield/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
         )
-    conda:
-        "../envs/environment.yaml"
     script:
         "../scripts/add_brownfield.py"
 
@@ -144,7 +147,7 @@ rule solve_sector_network_myopic:
         network=resources(
             "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_brownfield.nc"
         ),
-        costs=resources("costs_{planning_horizons}.csv"),
+        costs=resources("costs_{planning_horizons}_processed.csv"),
         offshore_zone_trajectories=branch(
             config_provider("sector", "offshore_hubs_tyndp", "enable"),
             resources("offshore_zone_trajectories.csv"),
@@ -172,7 +175,5 @@ rule solve_sector_network_myopic:
             RESULTS
             + "benchmarks/solve_sector_network/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}"
         )
-    conda:
-        "../envs/environment.yaml"
     script:
         "../scripts/solve_network.py"

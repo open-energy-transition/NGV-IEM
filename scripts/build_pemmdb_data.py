@@ -15,7 +15,8 @@ Cleaned CSV file with all NT capacities (p_nom) in long format and NetCDF file c
     Field                Coordinates           Description
     ===================  ====================  =========================================================
     p_min_pu,            time, bus, carrier,   the per unit hourly availability and must-run obligations
-    p_max_pu             type                  for each bus and PEMMDB technology
+    p_max_pu             index_carrier,        for each bus and PEMMDB technology
+                         open_tyndp_type
     ===================  ====================  =========================================================
 """
 
@@ -408,7 +409,7 @@ def _process_electrolyser_capacities(
     Extract and clean `Electrolyser` capacities.
     """
     # Extract data
-    df = node_tech_data.iloc[7:].dropna(how="all", axis=0).dropna(how="all", axis=1)
+    df = node_tech_data.iloc[7:, 1:].dropna(how="all", axis=0).dropna(how="all", axis=1)
 
     if df.empty:
         logger.debug(
@@ -417,7 +418,6 @@ def _process_electrolyser_capacities(
         return None
 
     column_names = [
-        "attributes",
         "p_nom",
         "units_count",
         "efficiency",
@@ -427,17 +427,12 @@ def _process_electrolyser_capacities(
         "generation_reduction",
     ]
 
-    df = (
-        df.set_axis(column_names, axis=1)
-        .set_index("attributes")
-        .assign(
-            pemmdb_carrier=pemmdb_tech,
-            bus=node,
-            country=node[:2],
-            pemmdb_type="Onshore grid connected",
-            unit="MW",
-        )
-        .reset_index(drop=True)
+    df = df.set_axis(column_names, axis=1).assign(
+        pemmdb_carrier=pemmdb_tech,
+        bus=node,
+        country=node[:2],
+        pemmdb_type="Onshore grid connected",
+        unit="MW",
     )
 
     return df
@@ -449,6 +444,10 @@ def _process_battery_capacities(
     """
     Extract and clean `Battery` capacities.
     """
+    # Fill missing data for FR15
+    if node == "FR15":
+        node_tech_data.iloc[-1, [5, 7, 8]] = 0
+
     # Extract data
     df_raw = (
         node_tech_data.iloc[7:, 1:]
@@ -1049,7 +1048,7 @@ def process_pemmdb_profiles(
             carrier_mapping_fn,
             ["pemmdb_carrier", "pemmdb_type"],
             drop_on_columns=True,
-        ).set_index(["time", "bus", "carrier", "index_carrier"])
+        ).set_index(["time", "bus", "carrier", "index_carrier", "open_tyndp_type"])
 
         return profiles
 

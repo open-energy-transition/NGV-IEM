@@ -142,7 +142,9 @@ electricity:
 
   conventional_carriers: [nuclear, oil, OCGT, CCGT, coal, lignite, geothermal, biomass]
   tyndp_conventional_carriers: []
+  group_tyndp_conventionals: true
   renewable_carriers: [solar, solar-hsat, onwind, offwind-ac, offwind-dc, offwind-float, hydro]
+  scale_hydro_to_pemmdb: false
   tyndp_renewable_carriers: []
   tyndp_stores: []
 
@@ -559,7 +561,6 @@ sector:
   heating: true
   biomass: true
   industry: true
-  use_industry_load: true
   shipping: true
   aviation: true
   agriculture: true
@@ -814,6 +815,7 @@ sector:
     biomass_to_methanol: true
     biomass_to_methanol_cc: false
   ammonia: true
+  min_part_load_electrolysis: 0
   min_part_load_fischer_tropsch: 0.5
   min_part_load_methanolisation: 0.3
   min_part_load_methanation: 0.3
@@ -846,6 +848,7 @@ sector:
   H2_network: true
   h2_topology_tyndp: false
   gas_network: true
+  gas_demand_exogenously: false
   H2_retrofit: false
   H2_retrofit_capacity_per_CH4: 0.6
   gas_network_connectivity_upgrade: 1
@@ -1020,20 +1023,8 @@ costs:
     "CO2 intensity": 0
     "discount rate": 0.07
     "standing losses": 0
+  custom_cost_fn: data/custom_costs.csv
   overwrites: {}
-  marginal_cost:
-    solar: 0.01
-    onwind: 0.015
-    offwind: 0.015
-    hydro: 0.
-    H2: 0.
-    electrolysis: 0.
-    fuel cell: 0.
-    battery: 0.
-    battery inverter: 0.
-    home battery storage: 0
-    water tank charger: 0.03
-    central water pit charger: 0.025
   emission_prices:
     enable: false
     co2: 0.

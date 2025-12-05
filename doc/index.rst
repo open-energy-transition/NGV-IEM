@@ -202,8 +202,8 @@ While multiple TYNDP features are already introduced to the Open-TYNDP model, th
      - 🔨
    * -
      - Methane
-     - 
-     - ⌛
+     - `#208 <https://github.com/open-energy-transition/open-tyndp/pull/208>`__, `#220 <https://github.com/open-energy-transition/open-tyndp/pull/220>`__
+     - 🔨
    * -
      - Synthetic fuels
      -
@@ -218,7 +218,7 @@ While multiple TYNDP features are already introduced to the Open-TYNDP model, th
      - ⌛
    * - **TYNDP technologies and carriers**
      - TYNDP generation technologies (incl. SRES and DRES)
-     - `# 115 <https://github.com/open-energy-transition/open-tyndp/pull/115>`__, `# 139 <https://github.com/open-energy-transition/open-tyndp/pull/139>`__
+     - `#115 <https://github.com/open-energy-transition/open-tyndp/pull/115>`__, `#139 <https://github.com/open-energy-transition/open-tyndp/pull/139>`__, `#195 <https://github.com/open-energy-transition/open-tyndp/pull/195>`__
      - 🔨
    * -
      - Prosumer modelling
@@ -382,7 +382,7 @@ Workflow
 
 .. note::
     The graph above was generated using
-    ``snakemake --rulegraph -F | sed -n "/digraph/,/}/p" | dot -Tpng -o workflow.png``
+    ``pixi run dot -c && snakemake --rulegraph -F | sed -n "/digraph/,/}/p" | dot -Tpng -o doc/img/workflow.png``
 
 
 Learning Energy System Modelling
@@ -489,6 +489,7 @@ The PyPSA-Eur workflow is continuously tested for Linux, macOS and Windows (WSL 
    preparation
    sector
    solving
+   oetc
    plotting
 
 .. toctree::
