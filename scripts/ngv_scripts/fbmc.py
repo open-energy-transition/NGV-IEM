@@ -8,12 +8,8 @@ import re
 import pandas as pd
 import pypsa
 
-PTDF_PATH = "data/fbmc/FB-Domain-CORE_Merged.xlsx"
-PTDF_PATH_NORDIC = "data/fbmc/FB domains/FB-Domain-NORDIC_ERAA2024.xlsx"
+PTDF_PATH = "data/ngv_iem/FB-Domain-CORE_Merged.xlsx"
 RAM_YEAR = 2030
-WEATHER_YEAR = 2009
-SNAPSHOT = 1
-
 
 def load_ptdf(
     fp: str, sheet_name: str = "PTDF", drop_columns_regex: list[str] = [r".*UA.*"]

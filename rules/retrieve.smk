@@ -960,3 +960,17 @@ if config["enable"]["retrieve"]:
         retries: 2
         run:
             move(input[0], output[0])
+
+if config["enable"]["retrieve"] & config["fbmc"]:
+
+    rule retrieve_ptdf_data:
+        message: 
+            "Getting PTFD data from ERAA 2023..."
+        input:
+            ptdf_data=storage(
+                "https://eepublicdownloads.blob.core.windows.net/public-cdn-container/clean-documents/sdc-documents/ERAA/2023/FB-Domain-CORE_Merged.xlsx"
+            ),
+        output:
+            ptdf_data="data/ngv_iem/FB-Domain-CORE_Merged.xlsx",
+        run:
+            move(input["ptdf_data"], output["ptdf_data"])
