@@ -114,5 +114,5 @@ final_df = final_df.rename(columns={0: "Total annual congestion income [€]", 1
 
 final_df.to_csv(snakemake.output[0], index=True)
 income_df.to_csv(snakemake.output[1], index=True)
-prices_df.to_csv(snakemake.output[2], index=True)
+prices_df[netflow_df.columns].to_csv(snakemake.output[2], index=True)
 netflow_df.to_csv(snakemake.output[3], index=True)

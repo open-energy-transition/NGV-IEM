@@ -26,6 +26,8 @@ rule all:
                scenario=SCENARIOS.keys()),
         # comparisons
         f"plots/congestion_income_comparison.pdf",
+        f"plots/netflow_comparison.pdf",
+        f"plots/price_difference_comparison.pdf",
         f"tables/producer_surplus_change.csv",
         f"tables/consumer_surplus_change.csv",
 
@@ -37,18 +39,24 @@ rule congestion_income_computation:
     output:
         f"tables/congestion_income_metrics_{{scenario}}.csv",
         f"tables/congestion_income_timeseries_{{scenario}}.csv",
-        f"tables/prices_timeseries_{{scenario}}.csv",
-        f"tables/netflows_timeseries_{{scenario}}.csv",
+        f"tables/price_difference_timeseries_{{scenario}}.csv",
+        f"tables/netflow_timeseries_{{scenario}}.csv",
     script:
         "../../scripts/compute_congestion_income.py"
 
 
 rule compare_congestion_income:
     input:
-        status_quo = f"tables/congestion_income_metrics_status_quo.csv",
-        iem = f"tables/congestion_income_metrics_iem.csv"
+        ci_sq = f"tables/congestion_income_timeseries_status_quo.csv",
+        ci_iem = f"tables/congestion_income_timeseries_iem.csv",
+        nf_sq = f"tables/netflow_timeseries_status_quo.csv",
+        nf_iem = f"tables/netflow_timeseries_iem.csv",
+        pd_sq = f"tables/price_difference_timeseries_status_quo.csv",
+        pd_iem = f"tables/price_difference_timeseries_iem.csv",
     output:
-        f"plots/congestion_income_comparison.pdf"
+        plot_ci = f"plots/congestion_income_comparison.pdf",
+        plot_nf = f"plots/netflow_comparison.pdf",
+        plot_pd = f"plots/price_difference_comparison.pdf",
     script:
         "../../scripts/compare_congestion_income.py"
 
