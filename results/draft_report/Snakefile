@@ -20,7 +20,7 @@ SCENARIOS = config["scenarios"]
 rule all:
     input:
         # dynamically expand scenario tables
-        expand(f"tables/congestion_income_{{scenario}}.csv",
+        expand(f"tables/congestion_income_metrics_{{scenario}}.csv",
                scenario=SCENARIOS.keys()),
         expand(f"tables/producer_surplus_{{scenario}}.csv",
                scenario=SCENARIOS.keys()),
@@ -35,15 +35,18 @@ rule congestion_income_computation:
     input:
         lambda wildcards: SCENARIOS[wildcards.scenario]["network"]
     output:
-        f"tables/congestion_income_{{scenario}}.csv"
+        f"tables/congestion_income_metrics_{{scenario}}.csv",
+        f"tables/congestion_income_timeseries_{{scenario}}.csv",
+        f"tables/prices_timeseries_{{scenario}}.csv",
+        f"tables/netflows_timeseries_{{scenario}}.csv",
     script:
         "../../scripts/compute_congestion_income.py"
 
 
 rule compare_congestion_income:
     input:
-        status_quo = f"tables/congestion_income_status_quo.csv",
-        iem = f"tables/congestion_income_iem.csv"
+        status_quo = f"tables/congestion_income_metrics_status_quo.csv",
+        iem = f"tables/congestion_income_metrics_iem.csv"
     output:
         f"plots/congestion_income_comparison.pdf"
     script:

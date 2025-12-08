@@ -6,8 +6,8 @@ from enum import StrEnum
 
 
 class Scenario(StrEnum):
-    STATUS_QUO = Scenario.STATUS_QUO
-    IEM = Scenario.IEM
+    STATUS_QUO = "STATUS_QUO"
+    IEM = "IEM"
 
 
 

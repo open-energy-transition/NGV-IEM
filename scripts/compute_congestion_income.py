@@ -4,7 +4,7 @@ import pandas as pd
 
 
 #-------- Load solved network -----#
-n = pypsa.Network(snakemake.input.network)
+n = pypsa.Network(snakemake.input[0])
 
 #------- Filter GB interconnections----------#
 
@@ -93,7 +93,7 @@ for interconnection in netflow_df.columns:
     netflow = netflow_df[interconnection]
 
     # revenue = ΔP × flow (€/MWh × MW / 10e6 = M€/h)
-    revenue = price_difference * netflow/10e6
+    revenue = price_difference * netflow
     income_dict[interconnection] = revenue
 
 income_df = pd.DataFrame(income_dict)
@@ -104,13 +104,15 @@ average_price_difference = prices_df[netflow_df.columns].mean(axis=0)
 #----------- Calculate the total annual results ----------
 
 annual_income = income_df.sum()
-average_income = income_df.mean()*10e6 #convert to Euros
+average_income = income_df.mean() #convert to Euros
 total_annual_income = annual_income.sum()
 
 final_df = pd.concat([annual_income, average_income, average_price_difference, average_netflow_df], axis = 1)
-final_df = final_df.rename(columns={0: "Total annual congestion income [M€]", 1: "Average congestion income [€/h]",
+final_df = final_df.rename(columns={0: "Total annual congestion income [€]", 1: "Average congestion income [€/h]",
                                     2: "Average Price Difference [Euros/MWh]", 3: "Average Netflow [MW]"})
 #----------- Export results to table -----------#
 
 final_df.to_csv(snakemake.output[0], index=True)
-
+income_df.to_csv(snakemake.output[1], index=True)
+prices_df.to_csv(snakemake.output[2], index=True)
+netflow_df.to_csv(snakemake.output[3], index=True)
