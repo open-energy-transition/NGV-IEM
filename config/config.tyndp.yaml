@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: CC0-1.0
 
 run:
-  prefix: "tyndp"
+  prefix: "tyndp-test"
   name: "all"
   scenarios:
     enable: true
@@ -14,19 +14,20 @@ foresight: myopic
 
 tyndp_scenario: NT
 
+fbmc: true
+
 scenario:
   clusters:
   - all
   planning_horizons:
   - 2030
-  - 2040
 
 countries: ['AL', 'AT', 'BA', 'BE', 'BG', 'CH', 'CZ', 'CY', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GB', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'ME', 'MK', 'MT', 'NL', 'NO', 'PL', 'PT', 'RO', 'RS', 'SE', 'SI', 'SK']
 
 snapshots:
   # TODO define multiple climatic years, being either 1995 2008 or 2009
   start: "2009-01-01"
-  end: "2010-01-01"
+  end: "2009-03-01"
 
 co2_budget:
 
@@ -378,4 +379,4 @@ plotting:
       flow_factor: 25
 
 benchmarking:
-  enable: true
+  enable: false

@@ -53,6 +53,7 @@ from scripts._helpers import (
     set_scenario_config,
     update_config_from_wildcards,
 )
+from scripts.ngv_scripts.fbmc import add_fbmc_constraints
 
 logger = logging.getLogger(__name__)
 
@@ -1347,6 +1348,9 @@ def extra_functionality(
             offshore_zone_trajectories_fn,
             renewable_carriers_tyndp,
         )
+
+    if config["fbmc"]:
+        add_fbmc_constraints(n)
 
     if n.params.custom_extra_functionality:
         source_path = n.params.custom_extra_functionality
