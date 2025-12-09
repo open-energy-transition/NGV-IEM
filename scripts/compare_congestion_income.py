@@ -69,7 +69,7 @@ datasets = [
     (
         snakemake.input.nf_sq,
         snakemake.input.nf_iem,
-        'Net Flow [MW]',
+        'Net Flow [MWh]',
         snakemake.output.plot_nf
     ),
     (

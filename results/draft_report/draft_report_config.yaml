@@ -1,5 +1,12 @@
-scenarios:
-  status_quo:
-    network: "../../resources/NT-1H-20251124/networks/base_s_all___2030.nc"
-  iem:
-    network: "../../resources/NT-1H-20251124/networks/base_s_all___2040.nc"
+
+  scenarios:
+    status_quo:
+      2030: "../../resources/NT-1H-20251124/networks/base_s_all___2030.nc"
+      2040: "../../resources/NT-1H-20251124/networks/base_s_all___2040.nc"
+    iem:
+      2030: "../../resources/NT-1H-20251124/networks/base_s_all___2030.nc"
+      2040: "../../resources/NT-1H-20251124/networks/base_s_all___2040.nc"
+
+  special_scenario: # it represents the explicit auction emulation - model run with forecast errors
+    2030: "../../resources/NT-1H-20251124/networks/base_s_all___2030.nc"
+    2040: "../../resources/NT-1H-20251124/networks/base_s_all___2030.nc"

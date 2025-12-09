@@ -3,7 +3,9 @@ import pandas as pd
 
 
 #-------- Load solved network -----#
-n = pypsa.Network(snakemake.input[0])
+targetdir = '/Users/tpa/MyProjects/NGV-IEM/resources/base_s_all_lluk__2030.nc'
+n = pypsa.Network(targetdir)
+#n = pypsa.Network(snakemake.input[0])
 
 # TO DO better define the countries (in accordance with TYNDP)
 list_of_zones = n.buses[n.buses["carrier"] == 'AC']
