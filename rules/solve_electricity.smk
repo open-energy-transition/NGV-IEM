@@ -22,9 +22,14 @@ rule solve_network:
             config_provider("sector", "offshore_hubs_tyndp", "enable"),
             resources("offshore_zone_trajectories.csv"),
         ),
+        ptdf_fp=lambda w: (
+            "data/ngv_iem/FB-Domain-CORE_Merged.xlsx"
+            if config_provider("fbmc")(w)
+            else []
+        ),
     output:
         network=RESULTS + "networks/base_s_{clusters}_elec_{opts}.nc",
-        config=RESULTS + "configs/config.base_s_{clusters}_elec_{opts}.yaml",
+        sconfig=RESULTS + "configs/config.base_s_{clusters}_elec_{opts}.yaml",
     log:
         solver=normpath(
             RESULTS + "logs/solve_network/base_s_{clusters}_elec_{opts}_solver.log"

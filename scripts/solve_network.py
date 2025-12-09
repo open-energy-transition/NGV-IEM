@@ -1353,7 +1353,7 @@ def extra_functionality(
         )
 
     if config["fbmc"]:
-        add_fbmc_constraints(n)
+        add_fbmc_constraints(n, ptdf_fp)
 
     if n.params.custom_extra_functionality:
         source_path = n.params.custom_extra_functionality
@@ -1402,6 +1402,7 @@ def solve_network(
     planning_horizons: str | None = None,
     offshore_zone_trajectories_fn: str | None = None,
     renewable_carriers_tyndp: list[str] = [],
+    ptdf_fp: str | None = None,
     **kwargs,
 ) -> None:
     """
@@ -1563,6 +1564,8 @@ if __name__ == "__main__":
     logging_frequency = snakemake.config.get("solving", {}).get(
         "mem_logging_frequency", 30
     )
+
+    ptdf_fp = getattr(snakemake.input, 'ptdf_fp', None)
     with memory_logger(
         filename=getattr(snakemake.log, "memory", None), interval=logging_frequency
     ) as mem:
@@ -1576,6 +1579,7 @@ if __name__ == "__main__":
             log_fn=snakemake.log.solver,
             offshore_zone_trajectories_fn=snakemake.input.offshore_zone_trajectories,
             renewable_carriers_tyndp=snakemake.params.renewable_carriers_tyndp,
+            ptdf_fp=ptdf_fp
         )
 
     logger.info(f"Maximum memory usage: {mem.mem_usage}")
