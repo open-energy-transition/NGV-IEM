@@ -152,6 +152,11 @@ rule solve_sector_network_myopic:
             config_provider("sector", "offshore_hubs_tyndp", "enable"),
             resources("offshore_zone_trajectories.csv"),
         ),
+        ptdf_fp=lambda w: (
+            "data/ngv_iem/FB-Domain-CORE_Merged.xlsx"
+            if config_provider("fbmc")
+            else []
+        ),
     output:
         network=RESULTS
         + "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}.nc",
