@@ -4,24 +4,28 @@
 
 run:
   prefix: "ngv-iem"
-  name: "fbmc"
+  name: "fbmc-test"
   scenarios:
     enable: false
 
-fbmc: false
+fbmc: true
+
+snapshots:
+  # TODO define multiple climatic years, being either 1995 2008 or 2009
+  start: "2009-01-01"
+  end: "2009-03-01"
 
 scenario:
   clusters:
   - all
   planning_horizons:
   - 2030
-  - 2040
 
 tyndp_scenario: NT
 
 clustering:
   temporal:
-    resolution_sector: 1H
+    resolution_sector: 6H
 
 benchmarking:
   enable: false
