@@ -143,6 +143,7 @@ rule solve_sector_network_myopic:
         renewable_carriers_tyndp=config_provider(
             "electricity", "tyndp_renewable_carriers"
         ),
+        fbmc=config_provider("fbmc"),
     input:
         network=resources(
             "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_brownfield.nc"

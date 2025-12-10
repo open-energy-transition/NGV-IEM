@@ -53,7 +53,7 @@ from scripts._helpers import (
     set_scenario_config,
     update_config_from_wildcards,
 )
-from scripts.ngv_scripts.fbmc import add_fbmc_constraints
+from scripts.ngv_scripts.fbmc import add_fbmc_constraints, modify_network_for_fbmc
 
 logger = logging.getLogger(__name__)
 
@@ -439,6 +439,7 @@ def prepare_network(
     planning_horizons: str | None,
     co2_sequestration_potential: dict[str, float],
     limit_max_growth: dict[str, Any] | None = None,
+    fbmc: bool = False,
 ) -> None:
     """
     Prepare network with various constraints and modifications.
@@ -457,6 +458,9 @@ def prepare_network(
         The current planning horizon year or None for perfect foresight
     co2_sequestration_potential : Dict[str, float]
         CO2 sequestration potential constraints by year
+    fbmc : bool, optional
+        Whether to modify the network for FBMC implementation following ERAA2023.
+        Default is False.
 
     Returns
     -------
@@ -523,6 +527,9 @@ def prepare_network(
             t.df["capital_cost"] += (
                 1e-1 + 2e-2 * (np.random.random(len(t.df)) - 0.5)
             ) * t.df["length"]
+
+    if fbmc:
+        n = modify_network_for_fbmc(n)
 
     if solve_opts.get("nhours"):
         nhours = solve_opts["nhours"]
@@ -1559,13 +1566,14 @@ if __name__ == "__main__":
         planning_horizons=planning_horizons,
         co2_sequestration_potential=snakemake.params["co2_sequestration_potential"],
         limit_max_growth=snakemake.params.get("sector", {}).get("limit_max_growth"),
+        fbmc=snakemake.params["fbmc"],
     )
 
     logging_frequency = snakemake.config.get("solving", {}).get(
         "mem_logging_frequency", 30
     )
 
-    ptdf_fp = getattr(snakemake.input, 'ptdf_fp', None)
+    ptdf_fp = getattr(snakemake.input, "ptdf_fp", None)
     with memory_logger(
         filename=getattr(snakemake.log, "memory", None), interval=logging_frequency
     ) as mem:
@@ -1579,7 +1587,7 @@ if __name__ == "__main__":
             log_fn=snakemake.log.solver,
             offshore_zone_trajectories_fn=snakemake.input.offshore_zone_trajectories,
             renewable_carriers_tyndp=snakemake.params.renewable_carriers_tyndp,
-            ptdf_fp=ptdf_fp
+            ptdf_fp=ptdf_fp,
         )
 
     logger.info(f"Maximum memory usage: {mem.mem_usage}")
