@@ -301,18 +301,15 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
 
     # Casting to xarray creates NaN values, need to fill those entries with 0
     ds = ds.fillna(0)
-    breakpoint()
 
-    lhs_1 = ds * n.model["Link-p"].sel(name=ds["name"])
+    flows = n.model["Link-p"].sel(name=ds["name"])
+    lhs_1 = ds * flows
     # Group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
     lhs_1 = lhs_1.sum(dim="name")
 
     # # add additional constraint for the sum of net positions (NP) to be 0 in CORE bidding zones
-    ds = ds.drop_vars('CNEC_ID') # not necessary for flow balance
-    nps = ds * n.model["Link-p"].sel(name=ds["name"])
-    nps = nps.sum(dim="name")
+    nps = flows.sum(dim="name")
     n.model.add_constraints(nps == 0, name="net-position-balance")
-    # # TODO
 
     # -----------------------------------
     # Second part of the FBMC constraint:
