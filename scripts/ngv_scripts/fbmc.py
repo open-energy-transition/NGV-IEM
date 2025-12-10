@@ -231,14 +231,83 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     # ----------------------------------
 
     # load PTDF
-    # go from FB Domains to snapshots
-    # get flow through links in CORE bidding zones
-    # do the fancy multiplication
-    # TODO
-    # lhs_1 = ...
+    ptdf = load_ptdf(fp, ptdf_type="PTDF_SZ")
 
-    # add additional constraint for the sum of net positions (NP) to be 0 in CORE bidding zones
-    # TODO
+    # get flow through links in CORE bidding zones
+
+    core_buses = [
+        "AT",  # do we need to include buses for offshore DC connections?
+        "BE",  # probably a neater way to integrate johannes's region map
+        "CZ",
+        "DE",
+        "FR",
+        "HR",
+        "HU",
+        "NL",
+        "PL",
+        "RO",
+        "SK",
+        "SI",
+    ]
+
+    links = (
+        n.components.links.static.query("`carrier`.str.startswith('DC')")[
+            ["bus0", "bus1"]
+        ]
+        .reset_index()
+        .rename(columns={"name": "link_name"})
+    )
+    links_c2c = links[
+        links.bus0.str[:2].isin(core_buses) & links.bus1.str[:2].isin(core_buses)
+    ]  # core to core buses
+    links_c2c["bus0_country"] = links_c2c.bus0.str[:2]
+    links_c2c["bus1_country"] = links_c2c.bus1.str[:2]
+    links_c2c = links_c2c[
+        links_c2c.bus1_country != links_c2c.bus0_country
+    ]  # no buses within 1 country
+
+    ptdf["bidding_zone_country"] = ptdf["bidding_zone"].str[:2]
+
+    foo = ptdf.merge(links_c2c, left_on="bidding_zone_country", right_on="bus0_country")
+    bar = ptdf.merge(links_c2c, left_on="bidding_zone_country", right_on="bus1_country")
+    ptdf = pd.concat([foo, bar])
+
+    # go from FB Domains to snapshots
+    ptdf_snapshoted = (
+        wa.to_frame()
+        .reset_index()
+        .merge(
+            ptdf,
+            left_on=[
+                "FB Domain",
+            ],
+            right_on=[
+                "FB Domain",
+            ],
+            how="left",
+        )
+    )
+    # do the fancy multiplication
+
+    ds = (
+        ptdf_snapshoted.drop_duplicates(
+            subset=["CNEC_ID", "snapshot", "link_name"]
+        )  # Why necessary?
+        .set_index(["CNEC_ID", "snapshot", "link_name"])["PTDF"]
+        .to_xarray()
+    )
+    ds = ds.rename({"link_name": "name"})
+
+    # Casting to xarray creates NaN values, need to fill those entries with 0
+    ds = ds.fillna(0)
+
+    lhs_1 = ds * n.model["Link-p"].sel(name=ds["name"])
+    # Group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
+    lhs_1 = lhs_1.sum(dim="name")
+
+    # # add additional constraint for the sum of net positions (NP) to be 0 in CORE bidding zones
+    # n.model.add_constraints(sum(np, axis=1) == 0, name="net-position-balance")
+    # # TODO
 
     # -----------------------------------
     # Second part of the FBMC constraint:
@@ -327,8 +396,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
 
     # Enable lhs_1 and lhs_3 when implemented
     n.model.add_constraints(
-        # lhs_1 +
-        lhs_2 + lhs_3 <= rhs,
+        lhs_1 + lhs_2 + lhs_3 <= rhs,
         name="PTDF-RAM-constraints",
     )
 
