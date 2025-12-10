@@ -210,7 +210,6 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         Needs to contain the PTDF matrix, RAM matrix, and weather assignments.
     """
 
-    ptdf = load_ptdf(fp)
     ram = load_ram(fp, sheet_name=f"RAM_{ram_year}")
     wa = load_weather_assignments(fp, snapshots=n.snapshots)
 
@@ -225,6 +224,27 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
             how="left",
         )
     )
+
+    # ----------------------------------
+    # First part of the FBMC constraint:
+    # Flows into and out of CORE bidding zones
+    # ----------------------------------
+
+    # load PTDF
+    # go from FB Domains to snapshots
+    # get flow through links in CORE bidding zones
+    # do the fancy multiplication
+    # TODO
+    # lhs_1 = ...
+
+    # add additional constraint for the sum of net positions (NP) to be 0 in CORE bidding zones
+    # TODO
+
+    # -----------------------------------
+    # Second part of the FBMC constraint:
+    # loading from HVDC lines between CORE and outside of CORE
+    # -----------------------------------
+    ptdf = load_ptdf(fp, ptdf_type="PTDF*_AHC,SZ")
 
     # Map pypsa.Network links that are related to DC and their names (index) to PTDF line names where bus0=from and bus1=to
     links = (
@@ -265,11 +285,44 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     # Casting to xarray creates NaN values, need to fill those entries with 0
     ds = ds.fillna(0)
 
-    lhs = ds * n.model["Link-p"].sel(name=ds["name"])
+    lhs_2 = ds * n.model["Link-p"].sel(name=ds["name"])
     # Group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
-    lhs = lhs.sum(dim="name")
+    lhs_2 = lhs_2.sum(dim="name")
+
+    # -----------------------------------
+    # Third part of the FBMC constraint:
+    # loading from HVDC lines within CORE region bidding zones
+    # -----------------------------------
+
+    # Load PTDF
+    ptdf = load_ptdf(fp, ptdf_type="PTDF_EvFB")
+
+    # Map PTDF to seasonal values for RAM
+    ptdf_snapshoted = (
+        wa.to_frame()
+        .reset_index()
+        .merge(
+            ptdf,
+            on=[
+                "FB Domain",
+            ],
+            how="left",
+        )
+    )
+
+    # TODO
+    # lhs_3 = ...
 
     rhs = ram_snapshoted.set_index(["CNEC_ID", "snapshot"])["RAM"].to_xarray().fillna(0)
+
+    # Enable lhs_1 and lhs_3 when implemented
+    n.model.add_constraints(
+        # lhs_1 +
+        lhs_2
+        # + lhs_3
+        <= rhs,
+        name="PTDF-RAM-constraints",
+    )
 
 
 def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
@@ -358,6 +411,9 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         "RO00": "CORE",
         "SK00": "CORE",
         "SI00": "CORE",
+        "EvFBA1": "ALEGRO",
+        "EvFBA2": "ALEGRO",
+        "EvFBA3": "ALEGRO",
     }
 
     for bus, region in fbmc_region_mapping.items():
@@ -372,6 +428,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         & (n.components.links.static["bus1"].isin(core_buses))
     ].index
     n.links.loc[idx, "PTDF_type"] = "PTDF_SZ"
+    n.links.loc[idx, "FBMC_zone"] = "CORE"
 
     # 2. PTDF*_AHC,SZ for flows between CORE and outside of CORE
     idx = n.components.links.static[
@@ -382,11 +439,13 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         & (n.components.links.static["carrier"].isin(["DC", "DC_OH", "AC"]))
     ].index
     n.links.loc[idx, "PTDF_type"] = "PTDF*_AHC,SZ"
+    n.links.loc[idx, "FBMC_zone"] = "CORE-Outside"
 
     # 3. PTDF_EvFB for flows related to the evolved FB
     idx = n.components.links.static.filter(
         regex=r"^EvFBA\d-EvFBA\d$", axis="index"
     ).index
     n.links.loc[idx, "PTDF_type"] = "PTDF_EvFB"
+    n.links.loc[idx, "virtual_zone"] = "ALEGRO"
 
     return n
