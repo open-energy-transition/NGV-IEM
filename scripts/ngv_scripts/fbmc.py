@@ -256,10 +256,14 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         .rename(columns={"name": "link_name"})
     )
     links_c2c = links[links.bus0.str[:2].isin(core_buses) & links.bus1.str[:2].isin(core_buses)] # core to core buses
-    links_c2c = links_c2c[(links_c2c.bus1.str[:2]) != (links_c2c.bus0.str[:2])] # no buses within 1 country
+    links_c2c['bus0_country'] = links_c2c.bus0.str[:2]
+    links_c2c['bus1_country'] = links_c2c.bus1.str[:2]
+    links_c2c = links_c2c[links_c2c.bus1_country.str != links_c2c.bus0_country.str] # no buses within 1 country
 
-    foo = ptdf.merge(links_c2c, left_on='bidding_zone', right_on='bus0')
-    bar = ptdf.merge(links_c2c, left_on='bidding_zone', right_on='bus1')
+    ptdf['bidding_zone_country'] = ptdf['bidding_zone'].str[:2]
+
+    foo = ptdf.merge(links_c2c, left_on='bidding_zone_country', right_on='bus0_country')
+    bar = ptdf.merge(links_c2c, left_on='bidding_zone_country', right_on='bus1_country')
     ptdf = pd.concat([foo, bar])
 
 	# go from FB Domains to snapshots
@@ -280,8 +284,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
 	# do the fancy multiplication
     
     ds = (
-        ptdf_snapshoted.dropna(subset=["link_name"])  # Why necessary?)
-        .drop_duplicates(subset=["CNEC_ID", "snapshot", "link_name"])  # Why necessary?
+        ptdf_snapshoted.drop_duplicates(subset=["CNEC_ID", "snapshot", "link_name"])  # Why necessary?
         .set_index(["CNEC_ID", "snapshot", "link_name"])["PTDF"]
         .to_xarray()
     )
