@@ -6,6 +6,7 @@
 import logging
 import re
 
+import numpy as np
 import pandas as pd
 import pypsa
 
@@ -447,6 +448,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         bus1="EvFBA2",
         p_nom=1e3,
         efficiency=1.0,
+        p_nom_extendable=False,
         p_min_pu=-1.0,
         p_max_pu=1.0,
     )
@@ -457,6 +459,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         bus1="EvFBA3",
         p_nom=1e3,
         efficiency=1.0,
+        p_nom_extendable=False,
         p_min_pu=-1.0,
         p_max_pu=1.0,
     )
@@ -467,6 +470,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         bus1="EvFBA1",
         p_nom=1e3,
         efficiency=1.0,
+        p_nom_extendable=False,
         p_min_pu=-1.0,
         p_max_pu=1.0,
     )
@@ -523,5 +527,11 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
     ).index
     n.links.loc[idx, "PTDF_type"] = "PTDF_EvFB"
     n.links.loc[idx, "virtual_zone"] = "ALEGRO"
+
+    # Remove any limits on any of the links covered by the FBMC constraints
+    # the original limits are NTC limits that are now superseded by the FBMC constraints
+    logger.info("Removing NTC limits on links covered by FBMC constraints.")
+    fbmc_links_idx = n.links.query("PTDF_type.notnull()").index
+    n.links.loc[fbmc_links_idx, "p_nom"] = np.inf
 
     return n
