@@ -258,7 +258,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     links_c2c = links[links.bus0.str[:2].isin(core_buses) & links.bus1.str[:2].isin(core_buses)] # core to core buses
     links_c2c['bus0_country'] = links_c2c.bus0.str[:2]
     links_c2c['bus1_country'] = links_c2c.bus1.str[:2]
-    links_c2c = links_c2c[links_c2c.bus1_country.str != links_c2c.bus0_country.str] # no buses within 1 country
+    links_c2c = links_c2c[links_c2c.bus1_country != links_c2c.bus0_country] # no buses within 1 country
 
     ptdf['bidding_zone_country'] = ptdf['bidding_zone'].str[:2]
 
