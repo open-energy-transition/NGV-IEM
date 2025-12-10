@@ -501,6 +501,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
 
     # Assign links an attribute to indicate which parts of the PTDF they are relevant for
     logger.info("Assigning PTDF types to network links for FBMC implementation.")
+    n.components.links.static["PTDF_type"] = ""
     # 1. PTDF_SZ for intra-CORE flows
     core_buses = n.components.buses.static.query("FBMC_region == 'CORE'").index.tolist()
     idx = n.components.links.static[
@@ -531,7 +532,10 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
     # Remove any limits on any of the links covered by the FBMC constraints
     # the original limits are NTC limits that are now superseded by the FBMC constraints
     logger.info("Removing NTC limits on links covered by FBMC constraints.")
-    fbmc_links_idx = n.links.query("PTDF_type.notnull()").index
+    fbmc_links_idx = n.links.loc[
+        n.links["PTDF_type"].isin(["PTDF*_AHC,SZ", "PTDF_SZ"])
+    ].index
     n.links.loc[fbmc_links_idx, "p_nom"] = np.inf
+    n.links.loc[fbmc_links_idx, "p_nom_extendable"] = False
 
     return n
