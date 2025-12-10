@@ -308,7 +308,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     lhs_1 = lhs_1.sum(dim="name")
 
     # # add additional constraint for the sum of net positions (NP) to be 0 in CORE bidding zones
-    ds = ds.drop_dims('CNEC_ID') # not necessary for flow balance
+    ds = ds.drop_vars('CNEC_ID') # not necessary for flow balance
     nps = ds * n.model["Link-p"].sel(name=ds["name"])
     nps = nps.sum(dim="name")
     n.model.add_constraints(nps == 0, name="net-position-balance")
