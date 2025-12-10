@@ -6,6 +6,7 @@
 import logging
 import re
 
+import numpy as np
 import pandas as pd
 import pypsa
 
@@ -234,9 +235,10 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     ptdf = load_ptdf(fp, ptdf_type="PTDF_SZ")
 
     # get flow through links in CORE bidding zones
-    
-    core_buses = ["AT", # do we need to include buses for offshore DC connections?
-        "BE", # probably a neater way to integrate johannes's region map
+
+    core_buses = [
+        "AT",  # do we need to include buses for offshore DC connections?
+        "BE",  # probably a neater way to integrate johannes's region map
         "CZ",
         "DE",
         "FR",
@@ -246,7 +248,8 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         "PL",
         "RO",
         "SK",
-        "SI"]
+        "SI",
+    ]
 
     links = (
         n.components.links.static.query("`carrier`.str.startswith('DC')")[
@@ -255,18 +258,22 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         .reset_index()
         .rename(columns={"name": "link_name"})
     )
-    links_c2c = links[links.bus0.str[:2].isin(core_buses) & links.bus1.str[:2].isin(core_buses)] # core to core buses
-    links_c2c['bus0_country'] = links_c2c.bus0.str[:2]
-    links_c2c['bus1_country'] = links_c2c.bus1.str[:2]
-    links_c2c = links_c2c[links_c2c.bus1_country != links_c2c.bus0_country] # no buses within 1 country
+    links_c2c = links[
+        links.bus0.str[:2].isin(core_buses) & links.bus1.str[:2].isin(core_buses)
+    ]  # core to core buses
+    links_c2c["bus0_country"] = links_c2c.bus0.str[:2]
+    links_c2c["bus1_country"] = links_c2c.bus1.str[:2]
+    links_c2c = links_c2c[
+        links_c2c.bus1_country != links_c2c.bus0_country
+    ]  # no buses within 1 country
 
-    ptdf['bidding_zone_country'] = ptdf['bidding_zone'].str[:2]
+    ptdf["bidding_zone_country"] = ptdf["bidding_zone"].str[:2]
 
-    foo = ptdf.merge(links_c2c, left_on='bidding_zone_country', right_on='bus0_country')
-    bar = ptdf.merge(links_c2c, left_on='bidding_zone_country', right_on='bus1_country')
+    foo = ptdf.merge(links_c2c, left_on="bidding_zone_country", right_on="bus0_country")
+    bar = ptdf.merge(links_c2c, left_on="bidding_zone_country", right_on="bus1_country")
     ptdf = pd.concat([foo, bar])
 
-	# go from FB Domains to snapshots
+    # go from FB Domains to snapshots
     ptdf_snapshoted = (
         wa.to_frame()
         .reset_index()
@@ -281,15 +288,17 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
             how="left",
         )
     )
-	# do the fancy multiplication
-    
+    # do the fancy multiplication
+
     ds = (
-        ptdf_snapshoted.drop_duplicates(subset=["CNEC_ID", "snapshot", "link_name"])  # Why necessary?
+        ptdf_snapshoted.drop_duplicates(
+            subset=["CNEC_ID", "snapshot", "link_name"]
+        )  # Why necessary?
         .set_index(["CNEC_ID", "snapshot", "link_name"])["PTDF"]
         .to_xarray()
     )
     ds = ds.rename({"link_name": "name"})
-    
+
     # Casting to xarray creates NaN values, need to fill those entries with 0
     ds = ds.fillna(0)
     breakpoint()
@@ -375,17 +384,24 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         )
     )
 
-    # TODO
-    # lhs_3 = ...
+    links = (
+        n.components.links.static.query("`index` == 'EvFBA1-EvFBA2'")
+        .reset_index()
+        .rename(columns={"name": "link_name"})
+    )
+
+    flows = n.model["Link-p"].sel(name="EvFBA1-EvFBA2")
+
+    ds = ptdf_snapshoted.set_index(["CNEC_ID", "snapshot"])["PTDF"].to_xarray() * flows
+
+    # Casting to xarray creates NaN values, need to fill those entries with 0
+    lhs_3 = ds.fillna(0)
 
     rhs = ram_snapshoted.set_index(["CNEC_ID", "snapshot"])["RAM"].to_xarray().fillna(0)
 
     # Enable lhs_1 and lhs_3 when implemented
     n.model.add_constraints(
-        lhs_1 +
-        lhs_2
-        # + lhs_3
-        <= rhs,
+        lhs_1 + lhs_2 + lhs_3 <= rhs,
         name="PTDF-RAM-constraints",
     )
 
@@ -436,6 +452,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         bus1="EvFBA2",
         p_nom=1e3,
         efficiency=1.0,
+        p_nom_extendable=False,
         p_min_pu=-1.0,
         p_max_pu=1.0,
     )
@@ -446,6 +463,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         bus1="EvFBA3",
         p_nom=1e3,
         efficiency=1.0,
+        p_nom_extendable=False,
         p_min_pu=-1.0,
         p_max_pu=1.0,
     )
@@ -456,6 +474,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         bus1="EvFBA1",
         p_nom=1e3,
         efficiency=1.0,
+        p_nom_extendable=False,
         p_min_pu=-1.0,
         p_max_pu=1.0,
     )
@@ -512,5 +531,11 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
     ).index
     n.links.loc[idx, "PTDF_type"] = "PTDF_EvFB"
     n.links.loc[idx, "virtual_zone"] = "ALEGRO"
+
+    # Remove any limits on any of the links covered by the FBMC constraints
+    # the original limits are NTC limits that are now superseded by the FBMC constraints
+    logger.info("Removing NTC limits on links covered by FBMC constraints.")
+    fbmc_links_idx = n.links.query("PTDF_type.notnull()").index
+    n.links.loc[fbmc_links_idx, "p_nom"] = np.inf
 
     return n
