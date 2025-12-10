@@ -310,17 +310,25 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         )
     )
 
-    # TODO
-    # lhs_3 = ...
+    links = (
+        n.components.links.static.query("`index` == 'EvFBA1-EvFBA2'")
+        .reset_index()
+        .rename(columns={"name": "link_name"})
+    )
+
+    flows = n.model["Link-p"].sel(name="EvFBA1-EvFBA2")
+
+    ds = ptdf_snapshoted.set_index(["CNEC_ID", "snapshot"])["PTDF"].to_xarray() * flows
+
+    # Casting to xarray creates NaN values, need to fill those entries with 0
+    lhs_3 = ds.fillna(0)
 
     rhs = ram_snapshoted.set_index(["CNEC_ID", "snapshot"])["RAM"].to_xarray().fillna(0)
 
     # Enable lhs_1 and lhs_3 when implemented
     n.model.add_constraints(
         # lhs_1 +
-        lhs_2
-        # + lhs_3
-        <= rhs,
+        lhs_2 + lhs_3 <= rhs,
         name="PTDF-RAM-constraints",
     )
 
