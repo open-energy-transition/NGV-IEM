@@ -3,8 +3,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
-targetdir = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/netflow_timeseries_status_quo.csv'
-targetdir2 = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/price_difference_timeseries_status_quo.csv'
+targetdir = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/netflow_timeseries_status_quo_2030.csv'
+targetdir2 = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/price_difference_timeseries_status_quo_2030.csv'
 
 df_netflow = pd.read_csv(targetdir, index_col=0)
 df_price_diff= pd.read_csv(targetdir2, index_col=0)
@@ -13,7 +13,7 @@ df_price_diff= pd.read_csv(targetdir2, index_col=0)
 #df_price_diff = pd.read_csv(snakemake.input.pd_sq, index_col=0)
 
 # Select interconnection
-intercon = "GB00-DKW1"
+intercon = "GB00-FR00"
 
 # TODO change filtering, to be done based on selected intercon
 
@@ -73,5 +73,6 @@ limit = max_abs_val * 1.1
 
 # 3. Apply the limits
 plt.xlim(-limit, limit)
-
+plt.title(f'Interconnector: {intercon}')
+plt.savefig('interconnector.pdf', bbox_inches='tight')
 plt.show()

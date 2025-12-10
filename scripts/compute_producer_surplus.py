@@ -3,50 +3,48 @@ import pandas as pd
 
 
 #-------- Load solved network -----#
-targetdir = '/Users/tpa/MyProjects/NGV-IEM/resources/base_s_all_lluk__2030.nc'
-n = pypsa.Network(targetdir)
-#n = pypsa.Network(snakemake.input[0])
+n = pypsa.Network(snakemake.input[0])
 
-# TO DO better define the countries (in accordance with TYNDP)
-list_of_zones = n.buses[n.buses["carrier"] == 'AC']
+# Filter only the electricity related zonal buses (countries)
+list_of_zones = n.buses[n.buses["carrier"] == 'AC'].index
 
-# Dictionary to store results
-producer_surplus_dict = {}
+# --- CREATE THE BUS MAPPER ---
+# Maps Component Name -> Electricity Bus
+bus_mapper = pd.concat([
+    n.generators.bus,          # Generators -> bus
+    n.links.bus1,              # Links -> bus1 (Output bus)
+    n.storage_units.bus,       # Hydro -> bus
+    n.stores.bus               # Stores -> bus
+])
 
-for zone in list_of_zones.index:
-    # Get power output of generators in selected zone (timeseries)
-    gens_zone = n.generators[n.generators.bus == zone].index
+raw_opex = n.statistics.opex(aggregate_time='sum', groupby=False)
+raw_revenue = n.statistics.revenue(aggregate_time='sum', groupby=False)
 
-    if len(gens_zone) == 0:
-        # Skip zones with no generators
-        continue
+# --- EXPLICIT MAPPING ---
+# Get the list of component names from the OPEX results (Level 1 of MultiIndex)
+component_names_opex = raw_opex.index.get_level_values(1)
+component_names_revenue = raw_revenue.index.get_level_values(1)
 
-    p = n.generators_t.p[gens_zone]
+# Map these names to their buses using our mapper
+mapped_buses_opex = component_names_opex.map(bus_mapper)
+mapped_buses_revenue = component_names_revenue.map(bus_mapper)
 
-    zonal_price = n.buses_t.marginal_price[zone]
+# Group by this new list of buses
+opex_by_bus = raw_opex.groupby(mapped_buses_opex).sum()
+revenue_by_bus = raw_revenue.groupby(mapped_buses_revenue).sum()
 
-    # Compute producers' revenue in selected zone
+df_economics = pd.DataFrame({
+    "Producer Revenue [M€]": revenue_by_bus,
+    "OPEX [M€]": opex_by_bus
+})
 
-    revenue = zonal_price * p.sum(axis = 1)
-    revenue_per_gen = p.mul(zonal_price, axis=0)
-    revenue_per_zone = revenue_per_gen.sum(axis=1)
+df_economics['Producer Surplus [M€]'] = df_economics["Producer Revenue [M€]"] - df_economics["OPEX [M€]"]
 
-    # Calculate electricity supply cost in selected zone
-    mc = n.generators.loc[gens_zone, "marginal_cost"]
-    supply_costs_per_gen = p * mc
-    supply_costs_per_zone = supply_costs_per_gen.sum(axis = 1)
+# Perform the filtering based on the selected zones
+result = df_economics.reindex(list_of_zones).fillna(0)
+result = result / 1e6  # convert to millions
 
-    # Compute producer surplus of selected zone (timeseries and the total annual)
-    producer_surplus_ts = revenue_per_zone - supply_costs_per_zone
+result = result.drop(columns = ["Producer Revenue [M€]", "OPEX [M€]"])
 
-    producer_surplus_total = producer_surplus_ts.sum(axis = 0)
-
-    # Save to dictionary
-    producer_surplus_dict[zone] = producer_surplus_total
-
-# Convert to dataframe for easy viewing / plotting
-producer_surplus_df = pd.DataFrame.from_dict(producer_surplus_dict, orient="index", columns=["Total Annual Producer Surplus [€]"])
-
-producer_surplus_df.to_csv(snakemake.output[0], index=True)
-
+result.to_csv(snakemake.output[0], index = True)
 
