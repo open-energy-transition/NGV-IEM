@@ -3,12 +3,13 @@
 #
 # SPDX-License-Identifier: MIT
 
+import logging
 import re
 
 import pandas as pd
 import pypsa
 
-PTDF_PATH = "data/ngv_iem/FB-Domain-CORE_Merged.xlsx"
+logger = logging.getLogger(__name__)
 
 
 def load_ptdf(
@@ -272,4 +273,122 @@ def add_fbmc_constraints(
 
     rhs = ram_snapshoted.set_index(["CNEC_ID", "snapshot"])["RAM"].to_xarray().fillna(0)
 
-    n.model.add_constraints(lhs <= rhs, name="PTDF-RAM-constraints")
+
+def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
+    """
+    Modify the pypsa.Network for the FBMC implementation.
+
+    The methodology follows the description in ERAA2023.
+    This function modified the network and adds additional components that are necessary for the
+    evolved FBMC implementation.
+    It also assigns some helpful, additional attributes to existing components like buses and links.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        The pypsa.Network object to be modified for FBMC implementation.
+
+    Returns
+    -------
+    pypsa.Network
+        The modified pypsa.Network object with FBMC implementation.
+    """
+
+    # ---------------------------------------------------
+    # Add the buses and links required for the Evolved FB
+    # ---------------------------------------------------
+    logger.info("Adding FBMC evolved FB buses and links to the network.")
+    n.add(
+        "Bus",
+        name="EvFBA1",
+    )
+    n.add(
+        "Bus",
+        name="EvFBA2",
+    )
+    n.add(
+        "Bus",
+        name="EvFBA3",
+    )
+
+    # links between the evolved FB buses
+    # capacities from PTDF file, "EvFB_capacities" sheet
+    n.add(
+        "Link",
+        name="EvFBA1-EvFBA2",
+        bus0="EvFBA1",
+        bus1="EvFBA2",
+        p_nom=1e3,
+        efficiency=1.0,
+        p_min_pu=-1.0,
+        p_max_pu=1.0,
+    )
+    n.add(
+        "Link",
+        name="EvFBA2-EvFBA3",
+        bus0="EvFBA2",
+        bus1="EvFBA3",
+        p_nom=1e3,
+        efficiency=1.0,
+        p_min_pu=-1.0,
+        p_max_pu=1.0,
+    )
+    n.add(
+        "Link",
+        name="EvFBA3-EvFBA1",
+        bus0="EvFBA3",
+        bus1="EvFBA1",
+        p_nom=1e3,
+        efficiency=1.0,
+        p_min_pu=-1.0,
+        p_max_pu=1.0,
+    )
+
+    # ----------------------------------------------------
+    # Add details on which FBMC region each bus belongs to
+    # ----------------------------------------------------
+    fbmc_region_mapping = {
+        "AT00": "CORE",
+        "BE00": "CORE",
+        "CZ00": "CORE",
+        "DE00": "CORE",
+        "FR00": "CORE",
+        "HR00": "CORE",
+        "HU00": "CORE",
+        "NL00": "CORE",
+        "PL00": "CORE",
+        "RO00": "CORE",
+        "SK00": "CORE",
+        "SI00": "CORE",
+    }
+
+    for bus, region in fbmc_region_mapping.items():
+        n.buses.loc[bus, "FBMC_region"] = region
+
+    # Assign links an attribute to indicate which parts of the PTDF they are relevant for
+    logger.info("Assigning PTDF types to network links for FBMC implementation.")
+    # 1. PTDF_SZ for intra-CORE flows
+    core_buses = n.components.buses.static.query("FBMC_region == 'CORE'").index.tolist()
+    idx = n.components.links.static[
+        (n.components.links.static["bus0"].isin(core_buses))
+        & (n.components.links.static["bus1"].isin(core_buses))
+    ].index
+    n.links.loc[idx, "PTDF_type"] = "PTDF_SZ"
+
+    # 2. PTDF*_AHC,SZ for flows between CORE and outside of CORE
+    idx = n.components.links.static[
+        (
+            (n.components.links.static["bus0"].isin(core_buses))
+            ^ (n.components.links.static["bus1"].isin(core_buses))
+        )
+        & (n.components.links.static["carrier"].isin(["DC", "DC_OH", "AC"]))
+    ].index
+    n.links.loc[idx, "PTDF_type"] = "PTDF*_AHC,SZ"
+
+    # 3. PTDF_EvFB for flows related to the evolved FB
+    idx = n.components.links.static.filter(
+        regex=r"^EvFBA\d-EvFBA\d$", axis="index"
+    ).index
+    n.links.loc[idx, "PTDF_type"] = "PTDF_EvFB"
+
+    return n
