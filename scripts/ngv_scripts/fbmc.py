@@ -9,10 +9,13 @@ import pandas as pd
 import pypsa
 
 PTDF_PATH = "data/ngv_iem/FB-Domain-CORE_Merged.xlsx"
-RAM_YEAR = 2030
+
 
 def load_ptdf(
-    fp: str, sheet_name: str = "PTDF", drop_columns_regex: list[str] = [r".*UA.*"]
+    fp: str,
+    ptdf_type: str,
+    sheet_name: str = "PTDF",
+    drop_columns_regex: list[str] = [r".*UA.*"],
 ) -> pd.DataFrame:
     """
     Load PTDF matrix from Excel file.
@@ -24,6 +27,9 @@ def load_ptdf(
     ----------
     fp : str
         File path to the Excel file containing the PTDF matrix.
+    ptdf_type : str
+        Type of PTDF matrix to load. Corresponds to the sheet column names in the Excel file.
+        Options for ERAA2023 are "PTDF_SZ", "PTDF*_AHC,SZ" or "PTDF_EvFB".
     sheet_name : str, optional
         Name of the sheet in the Excel file to read the PTDF matrix from.
         Default is "PTDF".
@@ -46,7 +52,7 @@ def load_ptdf(
         [
             (col[0], col[1])
             for col in ptdf.columns.values
-            if col[0] in ["Type", "PTDF*_AHC,SZ"]
+            if col[0] in ["Type", ptdf_type]
         ],
     ]
     ptdf = ptdf.droplevel(0, axis=1)
@@ -79,12 +85,21 @@ def load_ptdf(
         value_name="PTDF",
     )
 
-    # Split "line" into "from" and "to" bus columns
-    ptdf["from"] = ptdf["line"].str.split("-").str[0].str[:4]
-    ptdf["to"] = ptdf["line"].str.split("-").str[1].str[:4]
+    # Format specific to PTDF type
+    if ptdf_type == "PTDF*_AHC,SZ":
+        # Split "line" into "from" and "to" bus columns
+        ptdf["from"] = ptdf["line"].str.split("-").str[0].str[:4]
+        ptdf["to"] = ptdf["line"].str.split("-").str[1].str[:4]
 
-    # Reorder columns
-    ptdf = ptdf[["FB Domain", "CNEC_ID", "from", "to", "line", "PTDF"]]
+        # Reorder columns
+        ptdf = ptdf[["FB Domain", "CNEC_ID", "from", "to", "line", "PTDF"]]
+    elif ptdf_type == "PTDF_SZ":
+        # columns are per bidding zone already
+        ptdf = ptdf.rename(columns={"line": "bidding_zone"})
+    elif ptdf_type == "PTDF_EvFB":
+        ptdf = ptdf.rename(columns={"line": "virtual_zone"})
+    else:
+        raise ValueError(f"PTDF type '{ptdf_type}' not recognized.")
 
     return ptdf
 
@@ -178,7 +193,9 @@ def load_weather_assignments(
     return weather_assignments["FB Domain"]
 
 
-def add_fbmc_constraints(n: pypsa.Network, fp: str = PTDF_PATH) -> None:
+def add_fbmc_constraints(
+    n: pypsa.Network, fp: str = PTDF_PATH, ram_year: int = 2030
+) -> None:
     """
     Add the FBMC constraints to the pypsa.Network model.
 
@@ -195,7 +212,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str = PTDF_PATH) -> None:
     """
 
     ptdf = load_ptdf(fp)
-    ram = load_ram(fp, sheet_name=f"RAM_{RAM_YEAR}")
+    ram = load_ram(fp, sheet_name=f"RAM_{ram_year}")
     wa = load_weather_assignments(fp, snapshots=n.snapshots)
 
     # Map RAM values to weather seasons
