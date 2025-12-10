@@ -194,9 +194,7 @@ def load_weather_assignments(
     return weather_assignments["FB Domain"]
 
 
-def add_fbmc_constraints(
-    n: pypsa.Network, fp: str = PTDF_PATH, ram_year: int = 2030
-) -> None:
+def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> None:
     """
     Add the FBMC constraints to the pypsa.Network model.
 
