@@ -267,11 +267,19 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         links_c2c.bus1_country != links_c2c.bus0_country
     ]  # no buses within 1 country
 
-    ptdf["bidding_zone_country"] = ptdf["bidding_zone"].str[:2]
+    # Rename bus0 and bus1 for offshore hubs to be in the right bidding zone
+    bus_renaming = {
+        "NLOH001": "NL00",
+        "BEOH001": "BE00",
+        "BEIOH01": "BE00",
+        "DEOH001": "DE00",
+        "DEOH002": "DE00",
+        "PLOH001": "PL00",
+        "FROH001": "FR00",
+    }
 
-    foo = ptdf.merge(links_c2c, left_on="bidding_zone_country", right_on="bus0_country")
-    bar = ptdf.merge(links_c2c, left_on="bidding_zone_country", right_on="bus1_country")
-    ptdf = pd.concat([foo, bar])
+    links_c2c["bus0"] = links_c2c["bus0"].replace(bus_renaming)
+    links_c2c["bus1"] = links_c2c["bus1"].replace(bus_renaming)
 
     # go from FB Domains to snapshots
     ptdf_snapshoted = (
@@ -292,23 +300,30 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
 
     ds = (
         ptdf_snapshoted.drop_duplicates(
-            subset=["CNEC_ID", "snapshot", "link_name"]
+            subset=["CNEC_ID", "snapshot", "bidding_zone"]
         )  # Why necessary?
-        .set_index(["CNEC_ID", "snapshot", "link_name"])["PTDF"]
+        .set_index(["CNEC_ID", "snapshot", "bidding_zone"])["PTDF"]
         .to_xarray()
     )
-    ds = ds.rename({"link_name": "name"})
+    ds = ds.rename({"bidding_zone": "sz"})
 
     # Casting to xarray creates NaN values, need to fill those entries with 0
     ds = ds.fillna(0)
 
-    flows = n.model["Link-p"].sel(name=ds["name"])
-    lhs_1 = ds * flows
-    # Group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
-    lhs_1 = lhs_1.sum(dim="name")
+    flows = n.model["Link-p"].sel(name=links_c2c["link_name"].tolist())
+    exports_by_sz = flows.groupby(
+        links_c2c.set_index("link_name")["bus0"].rename_axis("name").rename("sz")
+    ).sum()
+    imports_by_sz = flows.groupby(
+        links_c2c.set_index("link_name")["bus1"].rename_axis("name").rename("sz")
+    ).sum()
+    net_positions_by_sz = exports_by_sz - imports_by_sz
+
+    # Calculate PTDF contribution and group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
+    lhs_1 = (ds * net_positions_by_sz).sum(dim="sz")
 
     # # add additional constraint for the sum of net positions (NP) to be 0 in CORE bidding zones
-    nps = flows.sum(dim="name")
+    nps = net_positions_by_sz.sum(dim="sz")
     n.model.add_constraints(nps == 0, name="net-position-balance")
 
     # -----------------------------------
