@@ -961,10 +961,11 @@ if config["enable"]["retrieve"]:
         run:
             move(input[0], output[0])
 
-if config["enable"]["retrieve"] & config["fbmc"]:
+
+if config["enable"]["retrieve"]:
 
     rule retrieve_ptdf_data:
-        message: 
+        message:
             "Getting PTFD data from ERAA 2023..."
         input:
             ptdf_data=storage(
