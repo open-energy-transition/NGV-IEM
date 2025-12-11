@@ -212,18 +212,13 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     """
 
     ram = load_ram(fp, sheet_name=f"RAM_{ram_year}")
-    wa = load_weather_assignments(fp, snapshots=n.snapshots)
+    wa = load_weather_assignments(fp, snapshots=n.snapshots).to_frame().reset_index()
 
     # Map RAM values to weather seasons
-    ram_snapshoted = (
-        wa.to_frame()
-        .reset_index()
-        .merge(
-            ram,
-            left_on=["FB Domain"],
-            right_on=["FB Domain"],
-            how="left",
-        )
+    ram_snapshoted = wa.merge(
+        ram,
+        on="FB Domain",
+        how="left",
     )
 
     # ----------------------------------
@@ -282,19 +277,10 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     links_c2c["bus1"] = links_c2c["bus1"].replace(bus_renaming)
 
     # go from FB Domains to snapshots
-    ptdf_snapshoted = (
-        wa.to_frame()
-        .reset_index()
-        .merge(
-            ptdf,
-            left_on=[
-                "FB Domain",
-            ],
-            right_on=[
-                "FB Domain",
-            ],
-            how="left",
-        )
+    ptdf_snapshoted = wa.merge(
+        ptdf,
+        on="FB Domain",
+        how="left",
     )
     # do the fancy multiplication
 
@@ -353,19 +339,10 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     )
 
     # Map PTDF values to seasonal values for RAM
-    ptdf_snapshoted = (
-        wa.to_frame()
-        .reset_index()
-        .merge(
-            ptdf,
-            left_on=[
-                "FB Domain",
-            ],
-            right_on=[
-                "FB Domain",
-            ],
-            how="left",
-        )
+    ptdf_snapshoted = wa.merge(
+        ptdf,
+        on="FB Domain",
+        how="left",
     )
 
     ds = (
@@ -392,16 +369,10 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     ptdf = load_ptdf(fp, ptdf_type="PTDF_EvFB")
 
     # Map PTDF to seasonal values for RAM
-    ptdf_snapshoted = (
-        wa.to_frame()
-        .reset_index()
-        .merge(
-            ptdf,
-            on=[
-                "FB Domain",
-            ],
-            how="left",
-        )
+    ptdf_snapshoted = wa.merge(
+        ptdf,
+        on="FB Domain",
+        how="left",
     )
 
     links = (
