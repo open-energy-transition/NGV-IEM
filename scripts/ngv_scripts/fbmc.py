@@ -311,12 +311,20 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     ds = ds.fillna(0)
 
     flows = n.model["Link-p"].sel(name=links_c2c["link_name"].tolist())
-    exports_by_sz = flows.groupby(
-        links_c2c.set_index("link_name")["bus0"].rename_axis("name").rename("sz")
-    ).sum()
-    imports_by_sz = flows.groupby(
-        links_c2c.set_index("link_name")["bus1"].rename_axis("name").rename("sz")
-    ).sum()
+    exports_by_sz = (
+        flows.groupby(
+            links_c2c.set_index("link_name")["bus0"].rename_axis("name").rename("sz")
+        )
+        .sum()
+        .reindex(sz=ds.indexes["sz"])
+    )
+    imports_by_sz = (
+        flows.groupby(
+            links_c2c.set_index("link_name")["bus1"].rename_axis("name").rename("sz")
+        )
+        .sum()
+        .reindex(sz=ds.indexes["sz"])
+    )
     net_positions_by_sz = exports_by_sz - imports_by_sz
 
     # Calculate PTDF contribution and group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
