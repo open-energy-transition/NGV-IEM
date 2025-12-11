@@ -97,7 +97,7 @@ def load_ptdf(
         ptdf = ptdf[["FB Domain", "CNEC_ID", "from", "to", "line", "PTDF"]]
     elif ptdf_type == "PTDF_SZ":
         # columns are per bidding zone already
-        ptdf = ptdf.rename(columns={"line": "bidding_zone"})
+        ptdf = ptdf.rename(columns={"line": "study_zone"})
     elif ptdf_type == "PTDF_EvFB":
         ptdf = ptdf.rename(columns={"line": "virtual_zone"})
     else:
@@ -229,52 +229,25 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     # load PTDF
     ptdf = load_ptdf(fp, ptdf_type="PTDF_SZ")
 
-    # get flow through links in CORE bidding zones
+    # get links relevant for the intra-CCR FBMC constraint
+    links_idx = n.components.links.static.query("`PTDF_type` == 'PTDF_SZ'").index
 
-    core_buses = [
-        "AT",  # do we need to include buses for offshore DC connections?
-        "BE",  # probably a neater way to integrate johannes's region map
-        "CZ",
-        "DE",
-        "FR",
-        "HR",
-        "HU",
-        "NL",
-        "PL",
-        "RO",
-        "SK",
-        "SI",
-    ]
-
-    links = (
-        n.components.links.static.query("`carrier`.str.startswith('DC')")[
-            ["bus0", "bus1"]
-        ]
-        .reset_index()
-        .rename(columns={"name": "link_name"})
+    # "study_zones" are named after the bidding zones, the flows in the network
+    # have a `-<CCR>` suffix, e.g. `-CORE` to indicate they are flows between the bidding zone
+    # and the CCR hub. Therefore, to align the PTDF data with the flows, we need to add the
+    # suffix to the study_zone names. We get the suffix from the link names and rename
+    # the study zones in the PTDF rather than the linopy model
+    rename_study_zones = {idx.split("-")[0]: idx for idx in links_idx}
+    assert len(set(rename_study_zones.values())) == len(links_idx), (
+        "Renaming of study zones to match link names resulted in a non 1:1 mapping."
     )
-    links_c2c = links[
-        links.bus0.str[:2].isin(core_buses) & links.bus1.str[:2].isin(core_buses)
-    ]  # core to core buses
-    links_c2c["bus0_country"] = links_c2c.bus0.str[:2]
-    links_c2c["bus1_country"] = links_c2c.bus1.str[:2]
-    links_c2c = links_c2c[
-        links_c2c.bus1_country != links_c2c.bus0_country
-    ]  # no buses within 1 country
+    ptdf["study_zone"] = ptdf["study_zone"].replace(rename_study_zones)
 
-    # Rename bus0 and bus1 for offshore hubs to be in the right bidding zone
-    bus_renaming = {
-        "NLOH001": "NL00",
-        "BEOH001": "BE00",
-        "BEIOH01": "BE00",
-        "DEOH001": "DE00",
-        "DEOH002": "DE00",
-        "PLOH001": "PL00",
-        "FROH001": "FR00",
-    }
+    # TODO we do not include the offshore regions into the calculation
+    # reason: Not part of the market, not interconnection to other countries,
+    # consider with their transfer capacitiy rather than including them into the FBMC
 
-    links_c2c["bus0"] = links_c2c["bus0"].replace(bus_renaming)
-    links_c2c["bus1"] = links_c2c["bus1"].replace(bus_renaming)
+    # get flow through links in CORE bidding zones
 
     # go from FB Domains to snapshots
     ptdf_snapshoted = wa.merge(
@@ -282,43 +255,25 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         on="FB Domain",
         how="left",
     )
-    # do the fancy multiplication
 
-    ds = (
-        ptdf_snapshoted.drop_duplicates(
-            subset=["CNEC_ID", "snapshot", "bidding_zone"]
-        )  # Why necessary?
-        .set_index(["CNEC_ID", "snapshot", "bidding_zone"])["PTDF"]
-        .to_xarray()
-    )
-    ds = ds.rename({"bidding_zone": "sz"})
+    # do the fancy multiplication
+    ptdf = ptdf_snapshoted.set_index(["CNEC_ID", "snapshot", "study_zone"])[
+        "PTDF"
+    ].to_xarray()
 
     # Casting to xarray creates NaN values, need to fill those entries with 0
-    ds = ds.fillna(0)
+    # TODO only use non-nan values for constraint?
+    ptdf = ptdf.fillna(0)
 
-    flows = n.model["Link-p"].sel(name=links_c2c["link_name"].tolist())
-    exports_by_sz = (
-        flows.groupby(
-            links_c2c.set_index("link_name")["bus0"].rename_axis("name").rename("sz")
-        )
-        .sum()
-        .reindex(sz=ds.indexes["sz"])
+    flows = n.model["Link-p"].sel(name=links_idx).rename({"name": "study_zone"})
+
+    # Align indices of ptdf and flows
+    ptdf = ptdf.reindex(
+        snapshot=flows.coords["snapshot"], study_zone=flows.coords["study_zone"]
     )
-    imports_by_sz = (
-        flows.groupby(
-            links_c2c.set_index("link_name")["bus1"].rename_axis("name").rename("sz")
-        )
-        .sum()
-        .reindex(sz=ds.indexes["sz"])
-    )
-    net_positions_by_sz = exports_by_sz - imports_by_sz
 
     # Calculate PTDF contribution and group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
-    lhs_1 = (ds * net_positions_by_sz).sum(dim="sz")
-
-    # # add additional constraint for the sum of net positions (NP) to be 0 in CORE bidding zones
-    nps = net_positions_by_sz.sum(dim="sz")
-    n.model.add_constraints(nps == 0, name="net-position-balance")
+    lhs_1 = (ptdf * flows).sum(dim="study_zone")
 
     # -----------------------------------
     # Second part of the FBMC constraint:
@@ -503,8 +458,29 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         (n.components.links.static["bus0"].isin(core_buses))
         & (n.components.links.static["bus1"].isin(core_buses))
     ].index
-    n.links.loc[idx, "PTDF_type"] = "PTDF_SZ"
-    n.links.loc[idx, "FBMC_zone"] = "CORE"
+
+    # Any of these links is removed and replaced with an unlimited link
+    # between the study zone and a virtual CORE hub
+    n.add("Bus", name="CORE", carrier="FBMC")
+    n.remove(
+        "Link",
+        name=idx.tolist(),
+    )
+    n.add(
+        "Link",
+        name=core_buses,
+        suffix="-CORE",
+        carrier="DC",
+        bus0=core_buses,
+        bus1="CORE",
+        p_nom=np.inf,
+        efficiency=1.0,
+        p_nom_extendable=False,
+        p_min_pu=-1.0,
+        p_max_pu=1.0,
+        PTDF_type="PTDF_SZ",
+        FBMC_region="CORE",
+    )
 
     # 2. PTDF*_AHC,SZ for flows between CORE and outside of CORE
     idx = n.components.links.static[
@@ -513,23 +489,15 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
             ^ (n.components.links.static["bus1"].isin(core_buses))
         )
         & (n.components.links.static["carrier"].isin(["DC", "DC_OH", "AC"]))
+        & (n.components.links.static["PTDF_type"] != "PTDF_SZ")
     ].index
     n.links.loc[idx, "PTDF_type"] = "PTDF*_AHC,SZ"
-    n.links.loc[idx, "FBMC_zone"] = "CORE-Outside"
-
-    # 3. PTDF_EvFB for flows related to the evolved FB
-    idx = n.components.links.static.filter(
-        regex=r"^EvFBA\d-EvFBA\d$", axis="index"
-    ).index
-    n.links.loc[idx, "PTDF_type"] = "PTDF_EvFB"
-    n.links.loc[idx, "virtual_zone"] = "ALEGRO"
+    n.links.loc[idx, "FBMC_region"] = "CORE-Outside"
 
     # Remove any limits on any of the links covered by the FBMC constraints
     # the original limits are NTC limits that are now superseded by the FBMC constraints
     logger.info("Removing NTC limits on links covered by FBMC constraints.")
-    fbmc_links_idx = n.links.loc[
-        n.links["PTDF_type"].isin(["PTDF*_AHC,SZ", "PTDF_SZ"])
-    ].index
+    fbmc_links_idx = n.links.loc[n.links["PTDF_type"].isin(["PTDF*_AHC,SZ"])].index
     n.links.loc[fbmc_links_idx, "p_nom"] = np.inf
     n.links.loc[fbmc_links_idx, "p_nom_extendable"] = False
     # also remove constraints on dispatch of these links
@@ -538,5 +506,12 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
         n.components.links.dynamic[param] = n.components.links.dynamic[param].drop(
             columns=cols
         )
+
+    # 3. PTDF_EvFB for flows related to the evolved FB
+    idx = n.components.links.static.filter(
+        regex=r"^EvFBA\d-EvFBA\d$", axis="index"
+    ).index
+    n.links.loc[idx, "PTDF_type"] = "PTDF_EvFB"
+    n.links.loc[idx, "FBMC_region"] = "ALEGRO"
 
     return n
