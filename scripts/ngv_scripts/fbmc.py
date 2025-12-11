@@ -553,5 +553,11 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
     ].index
     n.links.loc[fbmc_links_idx, "p_nom"] = np.inf
     n.links.loc[fbmc_links_idx, "p_nom_extendable"] = False
+    # also remove constraints on dispatch of these links
+    for param in ["p_max_pu", "p_min_pu"]:
+        cols = n.components.links.dynamic[param].columns.intersection(fbmc_links_idx)
+        n.components.links.dynamic[param] = n.components.links.dynamic[param].drop(
+            columns=cols
+        )
 
     return n
