@@ -131,7 +131,7 @@ def load_ram(fp: str, sheet_name: str = "RAM_2030") -> pd.DataFrame:
 def load_weather_assignments(
     fp: str,
     sheet_name: str = "FB Domain Assignment",
-    snapshots: pd.DatetimeIndex = None,
+    snapshots: pd.DatetimeIndex | None = None,
 ) -> pd.Series:
     """
     Load weather assignments between FB domains and weather year/timestep from Excel file.
@@ -188,7 +188,7 @@ def load_weather_assignments(
     )
     weather_assignments = weather_assignments.set_index("snapshot")
 
-    if not snapshots.empty:
+    if snapshots and not snapshots.empty:
         # Select requested timesteps only
         weather_assignments = weather_assignments.loc[snapshots]
 
@@ -230,7 +230,9 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     ptdf = load_ptdf(fp, ptdf_type="PTDF_SZ")
 
     # get links relevant for the intra-CCR FBMC constraint
-    links_idx = n.components.links.static.query("`PTDF_type` == 'PTDF_SZ'").index
+    links_idx = n.components.links.static.loc[
+        n.components.links.static["PTDF_type"] == "PTDF_SZ"
+    ].index
 
     # "study_zones" are named after the bidding zones, the flows in the network
     # have a `-<CCR>` suffix, e.g. `-CORE` to indicate they are flows between the bidding zone
@@ -238,9 +240,10 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     # suffix to the study_zone names. We get the suffix from the link names and rename
     # the study zones in the PTDF rather than the linopy model
     rename_study_zones = {idx.split("-")[0]: idx for idx in links_idx}
-    assert len(set(rename_study_zones.values())) == len(links_idx), (
-        "Renaming of study zones to match link names resulted in a non 1:1 mapping."
-    )
+    if len(set(rename_study_zones.values())) != len(links_idx):
+        raise ValueError(
+            "Renaming of study zones to match link names resulted in a non 1:1 mapping."
+        )
     ptdf["study_zone"] = ptdf["study_zone"].replace(rename_study_zones)
 
     # TODO we do not include the offshore regions into the calculation
@@ -257,23 +260,23 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     )
 
     # do the fancy multiplication
-    ptdf = ptdf_snapshoted.set_index(["CNEC_ID", "snapshot", "study_zone"])[
+    ds = ptdf_snapshoted.set_index(["CNEC_ID", "snapshot", "study_zone"])[
         "PTDF"
     ].to_xarray()
 
     # Casting to xarray creates NaN values, need to fill those entries with 0
     # TODO only use non-nan values for constraint?
-    ptdf = ptdf.fillna(0)
+    ds = ds.fillna(0)
 
     flows = n.model["Link-p"].sel(name=links_idx).rename({"name": "study_zone"})
 
     # Align indices of ptdf and flows
-    ptdf = ptdf.reindex(
+    ds = ds.reindex(
         snapshot=flows.coords["snapshot"], study_zone=flows.coords["study_zone"]
     )
 
     # Calculate PTDF contribution and group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
-    lhs_1 = (ptdf * flows).sum(dim="study_zone")
+    lhs_1 = (ds * flows).sum(dim="study_zone")
 
     # -----------------------------------
     # Second part of the FBMC constraint:
@@ -328,12 +331,6 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         ptdf,
         on="FB Domain",
         how="left",
-    )
-
-    links = (
-        n.components.links.static.query("`index` == 'EvFBA1-EvFBA2'")
-        .reset_index()
-        .rename(columns={"name": "link_name"})
     )
 
     flows = n.model["Link-p"].sel(name="EvFBA1-EvFBA2")
