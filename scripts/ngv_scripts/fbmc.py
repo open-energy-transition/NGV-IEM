@@ -188,7 +188,7 @@ def load_weather_assignments(
     )
     weather_assignments = weather_assignments.set_index("snapshot")
 
-    if snapshots and not snapshots.empty:
+    if snapshots is not None and not snapshots.empty:
         # Select requested timesteps only
         weather_assignments = weather_assignments.loc[snapshots]
 
@@ -259,24 +259,23 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
         how="left",
     )
 
+    ptdf_snapshoted.loc[ptdf_snapshoted["PTDF"].isna()]
+
     # do the fancy multiplication
-    ds = ptdf_snapshoted.set_index(["CNEC_ID", "snapshot", "study_zone"])[
-        "PTDF"
-    ].to_xarray()
-
-    # Casting to xarray creates NaN values, need to fill those entries with 0
-    # TODO only use non-nan values for constraint?
-    ds = ds.fillna(0)
-
-    flows = n.model["Link-p"].sel(name=links_idx).rename({"name": "study_zone"})
-
-    # Align indices of ptdf and flows
-    ds = ds.reindex(
-        snapshot=flows.coords["snapshot"], study_zone=flows.coords["study_zone"]
+    ds = (
+        ptdf_snapshoted.rename(columns={"study_zone": "name"})
+        .set_index(["CNEC_ID", "snapshot", "name"])["PTDF"]
+        .to_xarray()
     )
 
+    # Casting to xarray creates NaN values, need to fill those entries with 0
+    flows = n.model["Link-p"].sel(name=links_idx)
+
+    # Align indices of ptdf and flows
+    ds = ds.reindex(snapshot=flows.coords["snapshot"], name=flows.coords["name"])
+
     # Calculate PTDF contribution and group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
-    lhs_1 = (ds * flows).sum(dim="study_zone")
+    lhs_1 = (ds * flows).sum(dim="name")
 
     # -----------------------------------
     # Second part of the FBMC constraint:
@@ -306,15 +305,17 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     ds = (
         ptdf_snapshoted.dropna(subset=["link_name"])  # Why necessary?)
         .drop_duplicates(subset=["CNEC_ID", "snapshot", "link_name"])  # Why necessary?
-        .set_index(["CNEC_ID", "snapshot", "link_name"])["PTDF"]
+        .rename(columns={"link_name": "name"})
+        .set_index(["CNEC_ID", "snapshot", "name"])["PTDF"]
         .to_xarray()
     )
-    ds = ds.rename({"link_name": "name"})
 
     # Casting to xarray creates NaN values, need to fill those entries with 0
-    ds = ds.fillna(0)
+    flows = n.model["Link-p"].sel(name=ds["name"])
 
-    lhs_2 = ds * n.model["Link-p"].sel(name=ds["name"])
+    ds = ds.reindex(snapshot=flows.coords["snapshot"], name=flows.coords["name"])
+
+    lhs_2 = ds * flows
     # Group by snapshot and CNEC_ID to sum up all contributions to each CNEC at each snapshot
     lhs_2 = lhs_2.sum(dim="name")
 
@@ -337,10 +338,14 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
 
     ds = ptdf_snapshoted.set_index(["CNEC_ID", "snapshot"])["PTDF"].to_xarray() * flows
 
-    # Casting to xarray creates NaN values, need to fill those entries with 0
-    lhs_3 = ds.fillna(0)
+    ds = ds.reindex(
+        snapshot=flows.coords["snapshot"],
+    )
 
-    rhs = ram_snapshoted.set_index(["CNEC_ID", "snapshot"])["RAM"].to_xarray().fillna(0)
+    # Casting to xarray creates NaN values, need to fill those entries with 0
+    lhs_3 = ds
+
+    rhs = ram_snapshoted.set_index(["CNEC_ID", "snapshot"])["RAM"].to_xarray()
 
     # Enable lhs_1 and lhs_3 when implemented
     n.model.add_constraints(
