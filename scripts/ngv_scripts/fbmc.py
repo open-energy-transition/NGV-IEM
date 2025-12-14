@@ -154,6 +154,7 @@ def load_weather_assignments(
     sheet_name: str = "FB Domain Assignment",
     snapshots: pd.DatetimeIndex | None = None,
     weather_scenario: str | None = None,
+    year: int | None = None,
     eraa_version: str | None = None,
 ) -> pd.Series:
     """
@@ -177,6 +178,13 @@ def load_weather_assignments(
     weather_scenario : str, optional
         Weather scenario to load the weather assignments for. Only relevant for ERAA2024.
         E.g. "WS1", "WS2", etc..
+    year : int, optional
+        Year to load the weather assignments for. If not provided, all years are loaded
+        and the snapshot filtering (if used) is directly applied.
+        If specified, this will align the first timestamp of 'snapshots' to the specified year
+        and then filter the weather assignments using the snapshots.
+        The returned weather assignments will be always be aligned to the snapshots' year.
+        Only used for ERAA2024. E.g. "2026".
     eraa_version: str, optional
         ERAA version format to use to load the weather assignments for.
         Determined automatically if not provided, use for overwriting automatic detection.
@@ -260,6 +268,17 @@ def load_weather_assignments(
             weather_assignments[["Year", "Month", "Day", "Hour"]]
         )
         weather_assignments = weather_assignments.set_index("snapshot")
+
+        # Calculate the offset and realign the first timestamp of the specified year
+        if year and snapshots is not None and not snapshots.empty:
+            year_offset = pd.DateOffset(years=snapshots.min().year - year)
+            weather_assignments.index = weather_assignments.index + year_offset
+
+        elif year and snapshots is None:
+            # Align to the specified year directly
+            weather_assignments = weather_assignments.loc[
+                weather_assignments.year == year
+            ]
 
     if snapshots is not None and not snapshots.empty:
         # Select requested timesteps only
