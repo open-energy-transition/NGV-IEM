@@ -536,6 +536,7 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
 
     # Any of these links is removed and replaced with an unlimited link
     # between the study zone and a virtual CORE hub
+    n.add("Carrier", name="FBMC")
     n.add("Bus", name="CORE", carrier="FBMC")
     n.remove(
         "Link",
