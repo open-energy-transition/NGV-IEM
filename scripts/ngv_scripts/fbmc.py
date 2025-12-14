@@ -40,7 +40,9 @@ def load_ptdf(
         Default is [r".*UA.*"] to drop columns related to Ukraine.
     """
 
-    ptdf: pd.DataFrame = pd.read_excel(fp, header=[0, 1], sheet_name=sheet_name)
+    ptdf: pd.DataFrame = pd.read_excel(
+        fp, header=[0, 1], sheet_name=sheet_name, dtype=str
+    )
     ptdf = ptdf.rename(
         columns={
             "FB_ID": "FB Domain",
@@ -103,6 +105,9 @@ def load_ptdf(
     else:
         raise ValueError(f"PTDF type '{ptdf_type}' not recognized.")
 
+    # Convert PTDF values to float
+    ptdf = ptdf.astype({"PTDF": float})
+
     return ptdf
 
 
@@ -120,10 +125,26 @@ def load_ram(fp: str, sheet_name: str = "RAM_2030") -> pd.DataFrame:
         Name of the sheet in the Excel file to read the RAM matrix from.
         Default is "RAM_2030" for 2030's RAM values.
     """
-    ram = pd.read_excel(fp, sheet_name=sheet_name, skiprows=3)
+    # Read forward until row with "CNEC_ID" is found in column A,
+    # then move that row to be the header
+    # and read the rest of the sheet as normal
+    ram = pd.read_excel(
+        fp,
+        sheet_name=sheet_name,
+        usecols="A",
+    )
+    header_row_index = ram.index[ram.iloc[:, 0] == "CNEC_ID"].tolist()[0] + 1
+
+    # Read the sheet again with the correct header row set
+    ram = pd.read_excel(
+        fp,
+        header=header_row_index,
+        sheet_name=sheet_name,
+        dtype=str,
+    )
     ram = ram.melt(id_vars=["CNEC_ID"], var_name="FB Domain", value_name="RAM")
 
-    ram = ram.astype({"FB Domain": int})
+    ram = ram.astype({"RAM": float})
 
     return ram
 
@@ -132,6 +153,8 @@ def load_weather_assignments(
     fp: str,
     sheet_name: str = "FB Domain Assignment",
     snapshots: pd.DatetimeIndex | None = None,
+    weather_scenario: str | None = None,
+    eraa_version: str | None = None,
 ) -> pd.Series:
     """
     Load weather assignments between FB domains and weather year/timestep from Excel file.
@@ -151,6 +174,13 @@ def load_weather_assignments(
     snapshots : pd.DatetimeIndex, optional
         DatetimeIndex of snapshots to filter the weather assignments to.
         If None, all snapshots are returned. Default is None.
+    weather_scenario : str, optional
+        Weather scenario to load the weather assignments for. Only relevant for ERAA2024.
+        E.g. "WS1", "WS2", etc..
+    eraa_version: str, optional
+        ERAA version format to use to load the weather assignments for.
+        Determined automatically if not provided, use for overwriting automatic detection.
+        Currently "ERAA2023" and "ERAA2024" are supported.
 
     Returns
     -------
@@ -158,35 +188,78 @@ def load_weather_assignments(
        Series containing the weather assignments for the specified year and of the specified timestep.
     """
 
-    weather_assignments: pd.DataFrame = pd.read_excel(fp, sheet_name=sheet_name)
+    if eraa_version is None:
+        # Determine which ERAA version is present in the file based on sheet headers
+        df = pd.read_excel(fp, sheet_name=sheet_name, nrows=1)
+        if df.columns[:5].tolist() == ["Time_step", "Month", "Day", "Hour", "CY_1982"]:
+            eraa_version = "ERAA2023"
+        elif df.columns[:5].tolist() == ["Year", "Month", "Day", "Hour", "WS1"]:
+            eraa_version = "ERAA2024"
 
-    # Drop unnecessary columns
-    weather_assignments = weather_assignments.drop(columns=["Year"])
+    logger.info(f"Loading weather assignments for ERAA version {eraa_version}.")
 
-    # Rename columns from "CY_<YYYY>" to "<YYYY>" for easier access
-    weather_assignments = weather_assignments.rename(
-        columns={
-            col: col.replace("CY_", "")
-            for col in weather_assignments.columns
-            if col.startswith("CY_")
-        }
-    )
+    if eraa_version == "ERAA2023":
+        weather_assignments: pd.DataFrame = pd.read_excel(fp, sheet_name=sheet_name)
 
-    # Turn weather year columns into rows
-    weather_assignments = weather_assignments.melt(
-        id_vars=["Time_step", "Month", "Day", "Hour"],
-        var_name="Year",
-        value_name="FB Domain",
-    )
+        # Drop unnecessary columns
+        weather_assignments = weather_assignments.drop(columns=["Year"])
 
-    # Counting of hours starts at 1, adjust to start at 0 to create proper datetime index
-    weather_assignments["Hour"] = weather_assignments["Hour"] - 1
+        # Rename columns from "CY_<YYYY>" to "<YYYY>" for easier access
+        weather_assignments = weather_assignments.rename(
+            columns={
+                col: col.replace("CY_", "")
+                for col in weather_assignments.columns
+                if col.startswith("CY_")
+            }
+        )
 
-    # Turn columns into datetime index
-    weather_assignments["snapshot"] = pd.to_datetime(
-        weather_assignments[["Year", "Month", "Day", "Hour"]]
-    )
-    weather_assignments = weather_assignments.set_index("snapshot")
+        # Turn weather year columns into rows
+        weather_assignments = weather_assignments.melt(
+            id_vars=["Time_step", "Month", "Day", "Hour"],
+            var_name="Year",
+            value_name="FB Domain",
+        )
+
+        # Counting of hours starts at 1, adjust to start at 0 to create proper datetime index
+        weather_assignments["Hour"] = weather_assignments["Hour"] - 1
+
+        # Turn columns into datetime index
+        weather_assignments["snapshot"] = pd.to_datetime(
+            weather_assignments[["Year", "Month", "Day", "Hour"]]
+        )
+        weather_assignments = weather_assignments.set_index("snapshot")
+
+    elif eraa_version == "ERAA2024":
+        if weather_scenario is None:
+            raise ValueError(
+                "weather_scenario must be specified for ERAA2024 weather assignments."
+            )
+
+        weather_assignments: pd.DataFrame = pd.read_excel(
+            fp,
+            sheet_name=sheet_name,
+            usecols=["Year", "Month", "Day", "Hour", weather_scenario],
+            dtype={
+                "Year": int,
+                "Month": int,
+                "Day": int,
+                "Hour": int,
+                weather_scenario: str,
+            },
+        )
+
+        weather_assignments = weather_assignments.rename(
+            columns={weather_scenario: "FB Domain"}
+        )
+
+        # Counting of hours starts at 1, adjust to start at 0 to create proper datetime index
+        weather_assignments["Hour"] = weather_assignments["Hour"] - 1
+
+        # Turn columns into datetime index
+        weather_assignments["snapshot"] = pd.to_datetime(
+            weather_assignments[["Year", "Month", "Day", "Hour"]]
+        )
+        weather_assignments = weather_assignments.set_index("snapshot")
 
     if snapshots is not None and not snapshots.empty:
         # Select requested timesteps only
