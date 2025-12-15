@@ -107,6 +107,7 @@ def load_ptdf(
 
     # Convert PTDF values to float
     ptdf = ptdf.astype({"PTDF": float})
+    ptdf['FB Domain'] = ptdf['FB Domain'].astype(int)
 
     return ptdf
 
@@ -199,13 +200,15 @@ def load_weather_assignments(
     if eraa_version is None:
         # Determine which ERAA version is present in the file based on sheet headers
         df = pd.read_excel(fp, sheet_name=sheet_name, nrows=1)
-        if df.columns[:5].tolist() == ["Time_step", "Month", "Day", "Hour", "CY_1982"]:
+        if df.columns[:6].tolist() == ["Time_step", "Year", "Month", "Day", "Hour", "CY_1982"]:
             eraa_version = "ERAA2023"
         elif df.columns[:5].tolist() == ["Year", "Month", "Day", "Hour", "WS1"]:
             eraa_version = "ERAA2024"
+        else:
+        	raise ValueError("ERAA version not found")
 
     logger.info(f"Loading weather assignments for ERAA version {eraa_version}.")
-
+    
     if eraa_version == "ERAA2023":
         weather_assignments: pd.DataFrame = pd.read_excel(fp, sheet_name=sheet_name)
 
