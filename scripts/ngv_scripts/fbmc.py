@@ -108,7 +108,6 @@ def load_ptdf(
 
     # Convert PTDF values to float
     ptdf = ptdf.astype({"PTDF": float})
-    ptdf['FB Domain'] = ptdf['FB Domain'].astype(int)
 
     return ptdf
 
