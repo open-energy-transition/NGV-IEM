@@ -2,6 +2,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
+#N-side colours
+# #00ACC2 = blue
+# #F4A74F = yellow/orange
+# #8CBB13 = green
+# #535F6B = pink
+# #D63487 = dark grey
+
+nside_colours = ['#00ACC2', '#F4A74F', '#8CBB13', '#535F6B', '#D63487']
+my_palette = {
+    "Explicit": "#00ACC2",  # Blue
+    "Implicit": "#F4A74F"   # Orange/Yellow
+}
 
 def generate_comparison_plot(file_explicit, file_implicit, y_axis_label, output_filename=None):
 
@@ -42,15 +54,30 @@ def generate_comparison_plot(file_explicit, file_implicit, y_axis_label, output_
         x='Interconnection',
         y=y_axis_label,  # CHANGE 2: Tell seaborn to look for the new column name
         hue='Scenario',
-        showfliers=False,
-        palette='Set2'
+        showfliers=True,
+        palette=my_palette,
+        saturation=1,
     )
 
     # Customization
 
     plt.xlabel('Interconnection', fontsize=20, fontweight='bold')
     plt.ylabel(y_axis_label, fontsize=20, fontweight='bold')
-    plt.legend(title='Scenario', fontsize=20, title_fontsize=20)
+    #plt.legend(title='Scenario', fontsize=20, title_fontsize=20)
+    leg = plt.legend(title='Scenario', fontsize=20, title_fontsize=20)
+
+    # 2. Make the Title bold
+    leg.get_title().set_fontweight('bold')
+
+    # 3. Make the Entries (Explicit/Implicit) bold
+    for text in leg.get_texts():
+        text.set_fontweight('bold')
+
+
+    #plt.tick_params(axis='both', which='major', labelsize=20)
+    plt.xticks(fontsize=20, fontweight='bold')
+    # Set Y-axis ticks (Numbers) to Size 16 and Bold
+    plt.yticks(fontsize=20, fontweight='bold')
     plt.tight_layout()
 
 

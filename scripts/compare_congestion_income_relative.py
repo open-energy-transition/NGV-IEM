@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import matplotlib.ticker as mtick
 
 # Global style settings
 sns.set_context("talk", font_scale=1.1)
@@ -12,59 +13,105 @@ def generate_relative_change_plot(file_sq, file_iem, metric_name, output_filenam
     df_sq = pd.read_csv(file_sq, index_col=0)
     df_iem = pd.read_csv(file_iem, index_col=0)
 
-    # 2. Calculate Relative Change (%)
+    # 2. Aggregate: Time Aggregation (Rows)
+    if metric_name == "Price Difference":
+        # For Prices, we take the average over the year per line
+        total_sq = df_sq.mean(axis=0)
+        total_iem = df_iem.mean(axis=0)
+    else:
+        # For Flow/Income, we take the sum over the year per line
+        total_sq = df_sq.sum(axis=0)
+        total_iem = df_iem.sum(axis=0)
+
+    # --- NEW: Add "Total GB Interconnections" Column ---
+    # We must calculate the totals in ABSOLUTE terms first, then calculate the % change
+    total_label = "Total GB Interconnections"
+
+    if metric_name == "Price Difference":
+        # System Total for Price = Mean of all borders
+        agg_sq = total_sq.mean()
+        agg_iem = total_iem.mean()
+    else:
+        # System Total for Flow/Income = Sum of all borders
+        agg_sq = total_sq.sum()
+        agg_iem = total_iem.sum()
+
+    # Append the aggregated value to the Series
+    total_sq[total_label] = agg_sq
+    total_iem[total_label] = agg_iem
+    # ---------------------------------------------------
+
+    # 3. Calculate Relative Change (%)
     # Formula: (New - Old) / Old * 100
-    # Replace 0s with NaN to avoid division by zero errors
-    df_pct = ((df_iem - df_sq) / df_sq.replace(0, np.nan)) * 100
+    # Note: If agg_sq is 0 (unlikely for total), this produces inf/nan.
+    relative_diff = ((total_iem - total_sq) / total_sq) * 100
 
-    # Clean infinities
-    df_pct = df_pct.replace([np.inf, -np.inf], np.nan)
-
-    # 3. Construct the Dynamic Label
-    # This creates labels like "Relative Change in Net Flow [%]"
-    y_label_str = f"Relative Change in {metric_name} [%]"
-
-    # 4. Melt using the dynamic label
-    df_long = df_pct.melt(var_name='Interconnection',
-                          value_name=y_label_str)
-
-    # 5. Renaming Logic
-    original_names = df_sq.columns
+    # 4. Renaming Logic
     rename_map = {}
-    for i, s in enumerate(original_names):
-        short_name = s[:2] + "-" + s[5:7]
-        rename_map[s] = short_name
+    for s in relative_diff.index:
+        # Exception 1: The new Total Label
+        if s == total_label:
+            rename_map[s] = "Total"
 
-    if len(original_names) > 4:
-        rename_map[original_names[4]] = "GB-NIR"
+        # Exception 2: Northern Ireland
+        elif "GBNI" in s or "GBNR" in s:
+            rename_map[s] = "GB-NIR"
 
-    df_long['Interconnection'] = df_long['Interconnection'].map(rename_map)
+        # Standard Rule
+        else:
+            short_name = s[:2] + "-" + s[5:7]
+            rename_map[s] = short_name
 
-    # 6. Plotting
-    plt.figure(figsize=(14, 7))
+    # Rename the index
+    relative_diff = relative_diff.rename(index=rename_map)
 
-    sns.boxplot(
-        data=df_long,
-        x='Interconnection',
-        y=y_label_str,  # <--- Uses the specific label
-        showfliers=False,
-        color='#ff7f0e'
+    # 5. Plotting Preparation
+    # Colors: Green for Increase (>0), Red for Decrease (<0)
+    my_colors = ['#2ca02c' if x >= 0 else '#d62728' for x in relative_diff.values]
+
+    # Increase figure width to fit the extra bar
+    plt.figure(figsize=(15, 8))
+
+    ax = sns.barplot(
+        x=relative_diff.index,
+        y=relative_diff.values,
+        palette=my_colors,
+        edgecolor='black',
+        saturation=1
     )
 
     # Zero Line
-    plt.axhline(0, color='black', linestyle='--', linewidth=1.5, alpha=0.8)
-
-    # Optional: Limits (Adjust if necessary)
-    plt.ylim(-200, 200)
+    plt.axhline(0, color='black', linestyle='--', linewidth=1.5)
 
     # Customization
+    y_label_str = f"Relative Change in {metric_name} [%]"
     plt.xlabel('Interconnection', fontsize=20, fontweight='bold')
-    plt.ylabel(y_label_str, fontsize=16, fontweight='bold')  # <--- Dynamic Axis Label
+    plt.ylabel(y_label_str, fontsize=18, fontweight='bold')
 
-    # Dynamic Title
-    plt.title(f'Relative Difference in {metric_name}\n(IEM vs Status Quo)', fontsize=18, pad=15)
+    if metric_name == "Price Difference":
+        plt.title(f'Relative Change in Average {metric_name}\n(IEM vs Status Quo)', fontsize=20, pad=20)
+    else:
+        plt.title(f'Relative Annual Change in {metric_name}\n(IEM vs Status Quo)', fontsize=20, pad=20)
+
+    # Format Y-Axis as Percentages
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter())
+
+    # Add Data Labels on bars
+    for i, v in enumerate(relative_diff.values):
+        if pd.isna(v):
+            continue
+
+        # Dynamic offset logic
+        data_range = relative_diff.max() - relative_diff.min()
+        offset = data_range * 0.02 if data_range != 0 else 1
+
+        pos = v + offset if v >= 0 else v - offset
+        va = 'bottom' if v >= 0 else 'top'
+
+        ax.text(i, pos, f"{v:+.1f}%", ha='center', va=va, fontweight='bold', fontsize=12)
 
     plt.xticks(rotation=45)
+    plt.grid(True, axis='y', linestyle='--', alpha=0.3)
     plt.tight_layout()
 
     plt.savefig(output_filename)
@@ -77,19 +124,19 @@ datasets = [
     (
         snakemake.input.ci_sq,
         snakemake.input.ci_iem,
-        'Congestion Income',  # <--- This string is now used in Title & Axis
+        'Congestion Income',
         snakemake.output.plot_ci_diff
     ),
     (
         snakemake.input.nf_sq,
         snakemake.input.nf_iem,
-        'Net Flow',  # <--- Becomes "Relative Change in Net Flow [%]"
+        'Net Flow',
         snakemake.output.plot_nf_diff
     ),
     (
         snakemake.input.pd_sq,
         snakemake.input.pd_iem,
-        'Price Difference',  # <--- Becomes "Relative Change in Price Difference [%]"
+        'Price Difference',
         snakemake.output.plot_pd_diff
     ),
 ]
