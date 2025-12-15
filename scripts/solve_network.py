@@ -439,7 +439,7 @@ def prepare_network(
     planning_horizons: str | None,
     co2_sequestration_potential: dict[str, float],
     limit_max_growth: dict[str, Any] | None = None,
-    fbmc: bool = False,
+    fbmc: dict | None = None,
 ) -> None:
     """
     Prepare network with various constraints and modifications.
@@ -458,9 +458,9 @@ def prepare_network(
         The current planning horizon year or None for perfect foresight
     co2_sequestration_potential : Dict[str, float]
         CO2 sequestration potential constraints by year
-    fbmc : bool, optional
-        Whether to modify the network for FBMC implementation following ERAA2023.
-        Default is False.
+    fbmc : dict, optional
+        Configuration used to modify the network for FBMC implementation.
+        To disabled FBMC, use None. Default is None.
 
     Returns
     -------
@@ -528,8 +528,8 @@ def prepare_network(
                 1e-1 + 2e-2 * (np.random.random(len(t.df)) - 0.5)
             ) * t.df["length"]
 
-    if fbmc:
-        n = modify_network_for_fbmc(n)
+    if fbmc and fbmc["enable"]:
+        n = modify_network_for_fbmc(n, config=fbmc)
 
     if solve_opts.get("nhours"):
         nhours = solve_opts["nhours"]
@@ -1359,8 +1359,8 @@ def extra_functionality(
             renewable_carriers_tyndp,
         )
 
-    if config["fbmc"]:
-        add_fbmc_constraints(n, ptdf_fp)
+    if config["fbmc"] and config["fbmc"]["enable"]:
+        add_fbmc_constraints(n, ptdf_fp, config["fbmc"])
 
     if n.params.custom_extra_functionality:
         source_path = n.params.custom_extra_functionality
@@ -1540,10 +1540,10 @@ if __name__ == "__main__":
         from scripts._helpers import mock_snakemake
 
         snakemake = mock_snakemake(
-            "solve_sector_network",
+            "solve_sector_network_myopic",
             opts="",
-            clusters="5",
-            configfiles="config/test/config.overnight.yaml",
+            clusters="all",
+            configfiles="config/config.fbmc.yaml",
             sector_opts="",
             planning_horizons="2030",
         )
@@ -1573,7 +1573,9 @@ if __name__ == "__main__":
         "mem_logging_frequency", 30
     )
 
-    ptdf_fp = getattr(snakemake.input, "ptdf_fp", None)
+    if snakemake.params["fbmc"]["enable"]:
+        ptdf_fp = snakemake.input["ptdf"]
+
     with memory_logger(
         filename=getattr(snakemake.log, "memory", None), interval=logging_frequency
     ) as mem:

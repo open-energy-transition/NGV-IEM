@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def load_ptdf(
     fp: str,
     ptdf_type: str,
-    sheet_name: str = "PTDF",
+    sheet_name: str,
     drop_columns_regex: list[str] = [r".*UA.*"],
 ) -> pd.DataFrame:
     """
@@ -32,13 +32,14 @@ def load_ptdf(
     ptdf_type : str
         Type of PTDF matrix to load. Corresponds to the sheet column names in the Excel file.
         Options for ERAA2023 are "PTDF_SZ", "PTDF*_AHC,SZ" or "PTDF_EvFB".
-    sheet_name : str, optional
+    sheet_name : str
         Name of the sheet in the Excel file to read the PTDF matrix from.
-        Default is "PTDF".
     drop_columns_regex : list[str], optional
         List of regex patterns to identify columns to drop from the PTDF matrix.
         Default is [r".*UA.*"] to drop columns related to Ukraine.
     """
+
+    logger.info(f"Loading PTDF matrix of type '{ptdf_type}' from sheet '{sheet_name}'.")
 
     ptdf: pd.DataFrame = pd.read_excel(
         fp, header=[0, 1], sheet_name=sheet_name, dtype=str
@@ -111,7 +112,7 @@ def load_ptdf(
     return ptdf
 
 
-def load_ram(fp: str, sheet_name: str = "RAM_2030") -> pd.DataFrame:
+def load_ram(fp: str, sheet_name: str) -> pd.DataFrame:
     """
     Load RAM matrix from Excel file.
 
@@ -121,10 +122,12 @@ def load_ram(fp: str, sheet_name: str = "RAM_2030") -> pd.DataFrame:
     ----------
     fp : str
         File path to the Excel file containing the RAM matrix.
-    sheet_name : str, optional
+    sheet_name : str
         Name of the sheet in the Excel file to read the RAM matrix from.
-        Default is "RAM_2030" for 2030's RAM values.
     """
+
+    logger.info(f"Loading RAM matrix from sheet '{sheet_name}'.")
+
     # Read forward until row with "CNEC_ID" is found in column A,
     # then move that row to be the header
     # and read the rest of the sheet as normal
@@ -154,7 +157,7 @@ def load_weather_assignments(
     sheet_name: str = "FB Domain Assignment",
     snapshots: pd.DatetimeIndex | None = None,
     weather_scenario: str | None = None,
-    year: int | None = None,
+    weather_year: int | None = None,
     eraa_version: str | None = None,
 ) -> pd.Series:
     """
@@ -178,7 +181,7 @@ def load_weather_assignments(
     weather_scenario : str, optional
         Weather scenario to load the weather assignments for. Only relevant for ERAA2024.
         E.g. "WS1", "WS2", etc..
-    year : int, optional
+    weather_year : int, optional
         Year to load the weather assignments for. If not provided, all years are loaded
         and the snapshot filtering (if used) is directly applied.
         If specified, this will align the first timestamp of 'snapshots' to the specified year
@@ -270,24 +273,24 @@ def load_weather_assignments(
         weather_assignments = weather_assignments.set_index("snapshot")
 
         # Calculate the offset and realign the first timestamp of the specified year
-        if year and snapshots is not None and not snapshots.empty:
-            year_offset = pd.DateOffset(years=snapshots.min().year - year)
+        if weather_year and snapshots is not None and not snapshots.empty:
+            year_offset = pd.DateOffset(years=snapshots.min().year - weather_year)
             weather_assignments.index = weather_assignments.index + year_offset
 
-        elif year and snapshots is None:
+        elif weather_year and snapshots is None:
             # Align to the specified year directly
             weather_assignments = weather_assignments.loc[
-                weather_assignments.year == year
+                weather_assignments.year == weather_year
             ]
 
     if snapshots is not None and not snapshots.empty:
         # Select requested timesteps only
         weather_assignments = weather_assignments.loc[snapshots]
 
-    return weather_assignments["FB Domain"]
+    return weather_assignments["FB Domain"].to_frame().reset_index()
 
 
-def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> None:
+def add_fbmc_constraints(n: pypsa.Network, fp: str, config: dict) -> None:
     """
     Add the FBMC constraints to the pypsa.Network model.
 
@@ -301,10 +304,22 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     fp : str, optional
         File path to the Excel file containing the FBMC data.
         Needs to contain the PTDF matrix, RAM matrix, and weather assignments.
+    config : dict
+        Configuration used to modify the network for FBMC implementation.
     """
 
-    ram = load_ram(fp, sheet_name=f"RAM_{ram_year}")
-    wa = load_weather_assignments(fp, snapshots=n.snapshots).to_frame().reset_index()
+    ram = load_ram(fp, sheet_name=f"RAM_{config['ram_year']}")
+    wa = load_weather_assignments(
+        fp,
+        snapshots=n.snapshots,
+        weather_scenario=config.get("weather_scenario"),
+        weather_year=config.get("weather_year"),
+    )
+
+    if config["eraa_version"] == "eraa2023":
+        ptdf_sheet_name = "PTDF"
+    elif config["eraa_version"] == "eraa2024":
+        ptdf_sheet_name = f"PTDF_{config['ptdf_year']}"
 
     # Map RAM values to weather seasons
     ram_snapshoted = wa.merge(
@@ -319,7 +334,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     # ----------------------------------
 
     # load PTDF
-    ptdf = load_ptdf(fp, ptdf_type="PTDF_SZ")
+    ptdf = load_ptdf(fp=fp, sheet_name=ptdf_sheet_name, ptdf_type="PTDF_SZ")
 
     # get links relevant for the intra-CCR FBMC constraint
     links_idx = n.components.links.static.loc[
@@ -373,7 +388,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     # Second part of the FBMC constraint:
     # loading from HVDC lines between CORE and outside of CORE
     # -----------------------------------
-    ptdf = load_ptdf(fp, ptdf_type="PTDF*_AHC,SZ")
+    ptdf = load_ptdf(fp=fp, sheet_name=ptdf_sheet_name, ptdf_type="PTDF*_AHC,SZ")
 
     # Map pypsa.Network links that are related to DC and their names (index) to PTDF line names where bus0=from and bus1=to
     links = (
@@ -417,7 +432,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     # -----------------------------------
 
     # Load PTDF
-    ptdf = load_ptdf(fp, ptdf_type="PTDF_EvFB")
+    ptdf = load_ptdf(fp=fp, sheet_name=ptdf_sheet_name, ptdf_type="PTDF_EvFB")
 
     # Map PTDF to seasonal values for RAM
     ptdf_snapshoted = wa.merge(
@@ -446,7 +461,7 @@ def add_fbmc_constraints(n: pypsa.Network, fp: str, ram_year: int = 2030) -> Non
     )
 
 
-def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
+def modify_network_for_fbmc(n: pypsa.Network, config: dict) -> pypsa.Network:
     """
     Modify the pypsa.Network for the FBMC implementation.
 
@@ -459,6 +474,9 @@ def modify_network_for_fbmc(n: pypsa.Network) -> pypsa.Network:
     ----------
     n : pypsa.Network
         The pypsa.Network object to be modified for FBMC implementation.
+    config : dict
+        Configuration used to modify the network for FBMC implementation.
+        (TODO: Currently not used, but needed for proper ERAA2024 implementation)
 
     Returns
     -------

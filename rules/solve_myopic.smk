@@ -130,6 +130,23 @@ rule add_brownfield:
 
 ruleorder: add_existing_baseyear > add_brownfield
 
+def input_fbmc(w):
+    if config_provider("fbmc", "enable")(w):
+        if config_provider("fbmc", "eraa_version")(w).casefold() == "eraa2024":
+            return {
+                "ptdf": rules.retrieve_ptdf_data_eraa_2024.output["ptdf"]
+            }
+        elif config_provider("fbmc", "eraa_version")(w).casefold() == "eraa2023":
+            return {
+    
+                "ptdf": rules.retrieve_ptdf_data_eraa_2023.output["ptdf"]
+            }
+        else:
+            raise ValueError(
+                f"Unsupported ERAA version for FBMC: {config_provider('fbmc', 'eraa_version')(w)}"
+            )
+    else:
+        return {}
 
 rule solve_sector_network_myopic:
     params:
@@ -145,6 +162,7 @@ rule solve_sector_network_myopic:
         ),
         fbmc=config_provider("fbmc"),
     input:
+        unpack(input_fbmc),
         network=resources(
             "networks/base_s_{clusters}_{opts}_{sector_opts}_{planning_horizons}_brownfield.nc"
         ),
@@ -152,11 +170,6 @@ rule solve_sector_network_myopic:
         offshore_zone_trajectories=branch(
             config_provider("sector", "offshore_hubs_tyndp", "enable"),
             resources("offshore_zone_trajectories.csv"),
-        ),
-        ptdf_fp=lambda w: (
-            "data/ngv_iem/FB-Domain-CORE_Merged.xlsx"
-            if config_provider("fbmc")
-            else []
         ),
     output:
         network=RESULTS

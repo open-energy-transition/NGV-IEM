@@ -4,15 +4,15 @@
 
 run:
   prefix: "ngv-iem"
-  name: "fbmc-test-1H-Jan"
+  name: "fbmc-eraa2024-test-1H-Jan"
   scenarios:
     enable: false
 
 fbmc:
   enable: true
-  eraa_version: "eraa2023" # 2023 or 2024
+  eraa_version: "eraa2024" # 2023 or 2024
   ram_year: 2030
-  # the following settings only for 2024, ignored for 2023
+  # the following settings only for 2024, leave empty for eraa2023
   ptdf_year: 2030 # For loading PTDF values
   weather_scenario: "WS29" # For selecting FB Domain
   weather_year: 2030 # For selecting FB Domain
