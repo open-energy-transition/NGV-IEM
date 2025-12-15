@@ -964,14 +964,27 @@ if config["enable"]["retrieve"]:
 
 if config["enable"]["retrieve"]:
 
-    rule retrieve_ptdf_data:
+    rule retrieve_ptdf_data_eraa_2023:
         message:
             "Getting PTFD data from ERAA 2023..."
         input:
-            ptdf_data=storage(
+            ptdf=storage(
                 "https://eepublicdownloads.blob.core.windows.net/public-cdn-container/clean-documents/sdc-documents/ERAA/2023/FB-Domain-CORE_Merged.xlsx"
             ),
         output:
-            ptdf_data="data/ngv_iem/FB-Domain-CORE_Merged.xlsx",
+            ptdf="data/ngv_iem/FB-Domain-CORE_Merged.xlsx",
         run:
-            move(input["ptdf_data"], output["ptdf_data"])
+            move(input["ptdf"], output["ptdf"])
+
+    rule retrieve_ptdf_data_eraa_2024:
+        message:
+            "Getting PTFD data from ERAA 2024..."
+        input:
+            zip=storage(
+                "https://eepublicdownloads.blob.core.windows.net/public-cdn-container/clean-documents/sdc-documents/ERAA/ERAA_2024/FB%20domains.zip"
+            ),
+        output:
+            folder=directory("data/ngv_iem/ERAA2024/"),
+            ptdf="data/ngv_iem/ERAA2024/FB domains/FB-Domain-CORE_Full_ERAA2024.xlsx",
+        run:
+            unpack_archive(input["zip"], output["folder"])
