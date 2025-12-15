@@ -135,6 +135,7 @@ def load_ram(fp: str, sheet_name: str) -> pd.DataFrame:
         fp,
         sheet_name=sheet_name,
         usecols="A",
+        dtype=str,
     )
     header_row_index = ram.index[ram.iloc[:, 0] == "CNEC_ID"].tolist()[0] + 1
 
@@ -202,17 +203,26 @@ def load_weather_assignments(
     if eraa_version is None:
         # Determine which ERAA version is present in the file based on sheet headers
         df = pd.read_excel(fp, sheet_name=sheet_name, nrows=1)
-        if df.columns[:6].tolist() == ["Time_step", "Year", "Month", "Day", "Hour", "CY_1982"]:
+        if df.columns[:6].tolist() == [
+            "Time_step",
+            "Year",
+            "Month",
+            "Day",
+            "Hour",
+            "CY_1982",
+        ]:
             eraa_version = "ERAA2023"
         elif df.columns[:5].tolist() == ["Year", "Month", "Day", "Hour", "WS1"]:
             eraa_version = "ERAA2024"
         else:
-        	raise ValueError("ERAA version not found")
+            raise ValueError("ERAA version not found")
 
     logger.info(f"Loading weather assignments for ERAA version {eraa_version}.")
-    
+
     if eraa_version == "ERAA2023":
-        weather_assignments: pd.DataFrame = pd.read_excel(fp, sheet_name=sheet_name)
+        weather_assignments: pd.DataFrame = pd.read_excel(
+            fp, sheet_name=sheet_name, dtype=str
+        )
 
         # Drop unnecessary columns
         weather_assignments = weather_assignments.drop(columns=["Year"])
@@ -234,7 +244,7 @@ def load_weather_assignments(
         )
 
         # Counting of hours starts at 1, adjust to start at 0 to create proper datetime index
-        weather_assignments["Hour"] = weather_assignments["Hour"] - 1
+        weather_assignments["Hour"] = weather_assignments["Hour"].astype(int) - 1
 
         # Turn columns into datetime index
         weather_assignments["snapshot"] = pd.to_datetime(
