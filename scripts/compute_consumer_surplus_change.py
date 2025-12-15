@@ -39,8 +39,8 @@ for zone in list_of_zones.index:
     change_consumer_surplus_dict[zone] = consumer_surplus_change_total
 
 # Convert to dataframe for easy viewing / plotting
-consumer_surplus_change_df = pd.DataFrame.from_dict(change_consumer_surplus_dict, orient="index", columns=["Total Annual Consumer Surplus [M€]"])
-consumer_surplus_change_df = consumer_surplus_change_df/10e6 # convert to Millions
+consumer_surplus_change_df = pd.DataFrame.from_dict(change_consumer_surplus_dict, orient="index", columns=["Change in Total Annual Consumer Surplus [M€]"])
+consumer_surplus_change_df = consumer_surplus_change_df/1e6 # convert to Millions
 
 consumer_surplus_change_df.to_csv(snakemake.output[0], index=True)
 
@@ -50,7 +50,9 @@ consumer_surplus_change_df.to_csv(snakemake.output[0], index=True)
 zones_of_interest = ['GB00', 'BE00', 'DE00', 'DKW1','FR00', 'GBNI', 'IE00', 'NL00', 'NOS0']
 
 target_zone = 'GB00'
-neighbor_label = 'GB Neighbors'
+#neighbor_label = 'GB Neighbors'
+rest_eu_label = 'Rest of EU'
+total_label = 'Total System'
 
 # Derive the neighbor list
 neighbor_zones = [z for z in zones_of_interest if z != target_zone]
@@ -66,12 +68,16 @@ else:
 
 # Get Neighbors Sum
 # .reindex() selects only the neighbor rows; sum() adds up their changes
-val_neighbors = consumer_surplus_change_df.reindex(neighbor_zones)[col_name].sum()
+#val_neighbors = consumer_surplus_change_df.reindex(neighbor_zones)[col_name].sum()
+val_rest_eu = consumer_surplus_change_df.drop(index=target_zone, errors='ignore')[col_name].sum()
+
+# We sum the entire column to get the system-wide change
+val_total = consumer_surplus_change_df[col_name].sum()
 
 # Create Plotting DataFrame
 df_plot = pd.DataFrame({
-    'Zone': [target_zone, neighbor_label],
-    'Change [M€]': [val_target, val_neighbors]
+    'Zone': [target_zone, rest_eu_label, total_label],
+    'Change [M€]': [val_target, val_rest_eu, val_total]
 })
 
 # --- 4. Plotting ---
@@ -80,7 +86,15 @@ sns.set_context("talk")
 
 # COLOR LOGIC:
 # For Consumer Surplus, Positive Change is GOOD (Green), Negative is BAD (Red)
-colors = ['#2ca02c' if x > 0 else '#d62728' for x in df_plot['Change [M€]']]
+#colors = ['#2ca02c' if x > 0 else '#d62728' for x in df_plot['Change [M€]']]
+colors = ['#9FE0E8' if x > 0 else '#FBDEBD' for x in df_plot['Change [M€]']]
+
+#N-side colours
+# #00ACC2 = blue
+# #F4A74F = yellow/orange
+# #8CBB13 = green
+# #535F6B = pink
+# #D63487 = dark grey
 
 ax = sns.barplot(
     data=df_plot,

@@ -33,39 +33,55 @@ rule all:
         # Expand to include scenarios and years
         expand("tables/congestion_income_metrics_{scenario}_{year}.csv",
             scenario=SCENARIOS,year=YEARS),
+        expand("tables/congestion_income_timeseries_{scenario}_{year}.csv",
+           scenario=SCENARIOS, year=YEARS),
+        expand("tables/netflow_timeseries_{scenario}_{year}.csv",
+           scenario=SCENARIOS, year=YEARS),
+        expand("tables/price_difference_timeseries_{scenario}_{year}.csv",
+           scenario=SCENARIOS, year=YEARS),
         expand("tables/producer_surplus_{scenario}_{year}.csv",
             scenario=SCENARIOS,year=YEARS),
-        expand("tables/total_system_costs_{scenario}_{year}.csv",
+        expand("tables/total_opex_{scenario}_{year}.csv",
             scenario=SCENARIOS,year=YEARS),
+        expand("tables/total_congestion_income_{scenario}_{year}.csv",
+           scenario=SCENARIOS, year=YEARS),
 
         # Comparisons (expanded by YEAR only, as they compare fixed scenarios)
-        expand("plots/congestion_income_comparison_{year}.pdf",year=YEARS),
-        expand("plots/netflow_comparison_{year}.pdf",year=YEARS),
-        expand("plots/price_difference_comparison_{year}.pdf",year=YEARS),
+        #expand("plots/congestion_income_comparison_{year}.png",year=YEARS),
+        #expand("plots/netflow_comparison_{year}.png",year=YEARS),
+        #expand("plots/price_difference_comparison_{year}.png",year=YEARS),
 
-        expand("plots/congestion_income_difference_{year}.pdf", year=YEARS),
-        expand("plots/netflow_difference_{year}.pdf", year=YEARS),
-        expand("plots/price_difference_difference_{year}.pdf", year=YEARS),
+        expand("plots/congestion_income_difference_{year}.png", year=YEARS),
+        expand("plots/netflow_difference_{year}.png", year=YEARS),
+        expand("plots/price_difference_difference_{year}.png", year=YEARS),
 
-        expand("plots/congestion_income_relative_{year}.pdf", year=YEARS),
-        expand("plots/netflow_relative_{year}.pdf", year=YEARS),
-        expand("plots/price_difference_relative_{year}.pdf", year=YEARS),
+        #expand("plots/congestion_income_relative_{year}.png", year=YEARS),
+        #expand("plots/netflow_relative_{year}.png", year=YEARS),
+        #expand("plots/price_difference_relative_{year}.png", year=YEARS),
 
-        expand("plots/visualize_price_and_flow_effect_{year}.pdf",year=YEARS),
-        expand("plots/visualize_price_and_flow_effect_alternative_{year}.pdf",year=YEARS),
-        expand("plots/congestion_income_parity_plot_{year}.pdf",year=YEARS),
-        expand("plots/congestion_income_parity_plot_per_interconnection_{year}.pdf",year=YEARS),
-        expand("tables/comparison_total_system_costs_{year}.csv", year=YEARS),
-        expand("plots/comparison_total_system_costs_{year}.pdf",year=YEARS),
+        #expand("plots/visualize_price_and_flow_effect_{year}.png",year=YEARS),
+        #expand("plots/visualize_price_and_flow_effect_alternative_{year}.png",year=YEARS),
+        #expand("plots/congestion_income_parity_plot_{year}.png",year=YEARS),
+        #expand("plots/congestion_income_parity_plot_per_interconnection_{year}.png",year=YEARS),
+        #expand("plots/netflow_parity_plot_per_interconnection_{year}.png", year=YEARS),
+        #expand("plots/price_difference_parity_plot_per_interconnection_{year}.png", year=YEARS),
+        expand("tables/comparison_total_opex_{year}.csv", year=YEARS),
+        expand("tables/comparison_total_capex_{year}.csv", year=YEARS),
+        expand("plots/comparison_total_opex_{year}.png",year=YEARS),
         expand("tables/comparison_producer_surplus_{year}.csv",year=YEARS),
-        expand("plots/comparison_producer_surplus_{year}.pdf", year=YEARS),
+        expand("plots/comparison_producer_surplus_{year}.png", year=YEARS),
         expand("tables/comparison_consumer_surplus_{year}.csv", year=YEARS),
-        expand("plots/comparison_consumer_surplus_{year}.pdf", year=YEARS),
+        expand("plots/comparison_consumer_surplus_{year}.png", year=YEARS),
+
+        expand("tables/comparison_total_congestion_income_{year}.csv", year=YEARS),
+
+        expand("tables/total_welfare_change_{year}.csv", year=YEARS),
+
 
         # Output for the Special Scenario: Explicit auction emulation - model run with forecast errors
         # Note: We only expand over YEARS here, because there is only one special scenario
-        expand("tables/congestion_revenue_special_{year}.csv",year=YEARS),
-        expand("plots/congestion_revenue_comparison_special_{year}.pdf", year=YEARS),
+        #expand("tables/congestion_revenue_special_{year}.csv",year=YEARS),
+        #expand("plots/congestion_revenue_comparison_special_{year}.png", year=YEARS),
 
 # --- Special Scenario Computations ---
 
@@ -83,7 +99,7 @@ rule compare_congestion_revenue:
         ci_ex = "tables/congestion_income_timeseries_iem_{year}.csv",
         ci_iem = "tables/congestion_income_timeseries_iem_{year}.csv",
     output:
-        "plots/congestion_revenue_comparison_special_{year}.pdf"
+        "plots/congestion_revenue_comparison_special_{year}.png"
     script:
         "../../scripts/compare_congestion_revenue.py"
 
@@ -100,6 +116,23 @@ rule congestion_income_computation:
     script:
         "../../scripts/compute_congestion_income.py"
 
+rule total_congestion_income_computation:
+    input:
+        get_network
+    output:
+        "tables/total_congestion_income_{scenario}_{year}.csv",
+    script:
+        "../../scripts/compute_total_congestion_income.py"
+
+rule total_congestion_income_comparison:
+    input:
+        ci_sq = "tables/total_congestion_income_status_quo_{year}.csv",
+        ci_iem= "tables/total_congestion_income_iem_{year}.csv"
+    output:
+        "tables/comparison_total_congestion_income_{year}.csv",
+    script:
+        "../../scripts/compare_total_congestion_income.py"
+
 rule producer_surplus_computation:
     input:
         get_network
@@ -108,13 +141,23 @@ rule producer_surplus_computation:
     script:
         "../../scripts/compute_producer_surplus.py"
 
-rule total_system_costs_computation:
+rule total_opex_computation:
     input:
         get_network
     output:
-        "tables/total_system_costs_{scenario}_{year}.csv"
+        "tables/total_opex_{scenario}_{year}.csv"
     script:
-        "../../scripts/compute_total_system_costs.py"
+        "../../scripts/compute_total_opex.py"
+
+rule compare_total_capex:
+    input:
+        # Accessing the config directly using the wildcard year
+        network_status_quo=lambda wc: config["scenarios"]["status_quo"][int(wc.year)],
+        network_iem=lambda wc: config["scenarios"]["iem"][int(wc.year)]
+    output:
+        "tables/comparison_total_capex_{year}.csv"
+    script:
+        "../../scripts/compare_total_capex.py"
 
 
 # --- Comparison Rules (Status Quo vs IEM) per Year ---
@@ -130,9 +173,9 @@ rule compare_congestion_income:
         pd_sq="tables/price_difference_timeseries_status_quo_{year}.csv",
         pd_iem="tables/price_difference_timeseries_iem_{year}.csv",
     output:
-        plot_ci="plots/congestion_income_comparison_{year}.pdf",
-        plot_nf="plots/netflow_comparison_{year}.pdf",
-        plot_pd="plots/price_difference_comparison_{year}.pdf",
+        plot_ci="plots/congestion_income_comparison_{year}.png",
+        plot_nf="plots/netflow_comparison_{year}.png",
+        plot_pd="plots/price_difference_comparison_{year}.png",
     script:
         "../../scripts/compare_congestion_income.py"
 
@@ -146,9 +189,9 @@ rule compare_congestion_income_difference:
         pd_sq="tables/price_difference_timeseries_status_quo_{year}.csv",
         pd_iem="tables/price_difference_timeseries_iem_{year}.csv",
     output:
-        plot_ci_diff="plots/congestion_income_difference_{year}.pdf",
-        plot_nf_diff="plots/netflow_difference_{year}.pdf",
-        plot_pd_diff="plots/price_difference_difference_{year}.pdf",
+        plot_ci_diff="plots/congestion_income_difference_{year}.png",
+        plot_nf_diff="plots/netflow_difference_{year}.png",
+        plot_pd_diff="plots/price_difference_difference_{year}.png",
     script:
         "../../scripts/compare_congestion_income_difference.py"
 
@@ -163,9 +206,9 @@ rule compare_congestion_income_relative:
         pd_sq="tables/price_difference_timeseries_status_quo_{year}.csv",
         pd_iem="tables/price_difference_timeseries_iem_{year}.csv",
     output:
-        plot_ci_diff="plots/congestion_income_relative_{year}.pdf",
-        plot_nf_diff="plots/netflow_relative_{year}.pdf",
-        plot_pd_diff="plots/price_difference_relative_{year}.pdf",
+        plot_ci_diff="plots/congestion_income_relative_{year}.png",
+        plot_nf_diff="plots/netflow_relative_{year}.png",
+        plot_pd_diff="plots/price_difference_relative_{year}.png",
     script:
         "../../scripts/compare_congestion_income_relative.py"
 
@@ -174,7 +217,7 @@ rule plot_price_and_flows_effect:
         metrics_sq="tables/congestion_income_metrics_status_quo_{year}.csv",
         metrics_iem="tables/congestion_income_metrics_iem_{year}.csv",
     output:
-        "plots/visualize_price_and_flow_effect_{year}.pdf",
+        "plots/visualize_price_and_flow_effect_{year}.png",
     script:
         "../../scripts/visualize_price_and_flow_effect.py"
 
@@ -183,7 +226,7 @@ rule plot_price_and_flows_effect_alternative:
         metrics_sq="tables/congestion_income_metrics_status_quo_{year}.csv",
         metrics_iem="tables/congestion_income_metrics_iem_{year}.csv",
     output:
-        "plots/visualize_price_and_flow_effect_alternative_{year}.pdf",
+        "plots/visualize_price_and_flow_effect_alternative_{year}.png",
     script:
         "../../scripts/visualize_price_and_flow_effect_alternative.py"
 
@@ -192,16 +235,25 @@ rule create_parity_plot:
         metrics_sq="tables/congestion_income_metrics_status_quo_{year}.csv",
         metrics_iem="tables/congestion_income_metrics_iem_{year}.csv",
     output:
-        "plots/congestion_income_parity_plot_{year}.pdf",
+        "plots/congestion_income_parity_plot_{year}.png",
     script:
         "../../scripts/plot_congestion_income_correlation.py"
 
 rule create_parity_plot_per_interconnection:
     input:
-        metrics_sq="tables/congestion_income_timeseries_status_quo_{year}.csv",
-        metrics_iem="tables/congestion_income_timeseries_iem_{year}.csv",
+        metrics_sq="tables/netflow_timeseries_status_quo_{year}.csv",
+        metrics_iem="tables/netflow_timeseries_iem_{year}.csv",
     output:
-        "plots/congestion_income_parity_plot_per_interconnection_{year}.pdf",
+        "plots/netflow_parity_plot_per_interconnection_{year}.png",
+    script:
+        "../../scripts/plot_congestion_income_correlation_per_interconnection.py"
+
+rule create_parity_plot_per_interconnection2:
+    input:
+        metrics_sq="tables/price_difference_timeseries_status_quo_{year}.csv",
+        metrics_iem="tables/price_difference_timeseries_iem_{year}.csv",
+    output:
+        "plots/price_difference_parity_plot_per_interconnection_{year}.png",
     script:
         "../../scripts/plot_congestion_income_correlation_per_interconnection.py"
 
@@ -210,19 +262,19 @@ rule plot_explicit_allocation_inefficiency_status_quo:
         nf_sq="tables/netflow_timeseries_status_quo_{year}.csv",
         pd_sq="tables/price_difference_timeseries_status_quo_{year}.csv",
     output:
-        "plots/explicit_allocation_inefficiency_plot_status_quo_{year}.pdf",
+        "plots/explicit_allocation_inefficiency_plot_status_quo_{year}.png",
     script:
         "../../scripts/plot_explicit_allocation_inefficiency.py"
 
-rule compare_total_system_costs:
+rule compare_total_opex:
     input:
-        sq="tables/total_system_costs_status_quo_{year}.csv",
-        iem="tables/total_system_costs_iem_{year}.csv",
+        sq="tables/total_opex_status_quo_{year}.csv",
+        iem="tables/total_opex_iem_{year}.csv",
     output:
-        "tables/comparison_total_system_costs_{year}.csv",
-        "plots/comparison_total_system_costs_{year}.pdf"
+        "tables/comparison_total_opex_{year}.csv",
+        "plots/comparison_total_opex_{year}.png"
     script:
-        "../../scripts/compare_total_system_costs.py"
+        "../../scripts/compare_total_opex.py"
 
 rule compare_producer_surplus:
     input:
@@ -230,7 +282,7 @@ rule compare_producer_surplus:
         iem="tables/producer_surplus_iem_{year}.csv"
     output:
         "tables/comparison_producer_surplus_{year}.csv",
-        "plots/comparison_producer_surplus_{year}.pdf"
+        "plots/comparison_producer_surplus_{year}.png"
     script:
         "../../scripts/compute_producer_surplus_change.py"
 
@@ -241,6 +293,19 @@ rule compare_consumer_surplus:
         network_iem=lambda wc: config["scenarios"]["iem"][int(wc.year)]
     output:
         "tables/comparison_consumer_surplus_{year}.csv",
-        "plots/comparison_consumer_surplus_{year}.pdf"
+        "plots/comparison_consumer_surplus_{year}.png"
     script:
         "../../scripts/compute_consumer_surplus_change.py"
+
+
+
+rule compare_economic_welfare:
+    input:
+        prod_sur = "tables/comparison_producer_surplus_{year}.csv",
+        cons_sur = "tables/comparison_consumer_surplus_{year}.csv",
+        cong_inc = "tables/comparison_total_congestion_income_{year}.csv",
+        opex = "tables/comparison_total_opex_{year}.csv",
+    output:
+        "tables/total_welfare_change_{year}.csv",
+    script:
+        "../../scripts/compute_economic_welfare_change.py"

@@ -2,11 +2,11 @@
   scenarios:
     status_quo:
       2030: "../../resources/base_s_all_lluk__2030.nc"
-      2040: "../../resources/base_s_all_lluk__2030.nc" #to be changed for 2040
+      2040: "../../resources/base_s_all_lluk__2040.nc"
     iem:
       2030: "../../resources/base_s_all___2030.nc" #currently the regular open-tyndp. To be changed --> fbmc model
-      2040: "../../resources/base_s_all___2030.nc" #to be changed to fbmc and 2040
+      2040: "../../resources/base_s_all___2040.nc" #to be changed to fbmc and 2040
 
   special_scenario: # it represents the explicit auction emulation - model run with forecast errors
-    2030: "../../resources/base_s_all___2030_trader-forecast.nc"
-    2040: "../../resources/base_s_all___2030_trader-forecast.nc"  # to be changed for 2040
+    2030: "../../resources/base_s_all___2030_trader-forecast_older.nc"
+    2040: "../../resources/base_s_all___2030_trader-forecast_older.nc"  # to be changed for 2040

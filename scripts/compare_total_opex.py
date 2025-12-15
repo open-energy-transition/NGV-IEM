@@ -16,81 +16,48 @@ df_sq = pd.read_csv(snakemake.input.sq, index_col=0)
 df_iem = pd.read_csv(snakemake.input.iem, index_col=0)
 
 # Calculate difference in Producer surplus
-df_diff = df_sq - df_iem  #using status quo as reference
+df_diff = df_iem - df_sq  #using status quo as reference
 
 df_diff.to_csv(snakemake.output[0])
-
-#targetdir = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/total_system_costs_status_quo_2030.csv'
-#targetdir2 = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/total_system_costs_iem_2030.csv'
-
-#df_sq = pd.read_csv(targetdir, index_col=0)
-#df_iem = pd.read_csv(targetdir2, index_col=0)
 
 # Ensure the column has a consistent name for processing
 # (Assuming the first column contains the OPEX data)
 opex_col_sq = df_sq.columns[0]
 opex_col_iem = df_iem.columns[0]
 
-def aggregate_regions(df, value_col, target_zone='GB00', other_label='Rest of EU'):
+
+def aggregate_rest_of_eu(df, value_col, target, rest_label, total_label):
     """
-    Separates the target zone from the rest and sums the rest.
+    Aggregates: Target Zone, Rest of EU (Total - Target), and Total System
     """
-    # 1. Get the specific zone's value
-    if target_zone in df.index:
-        target_value = df.loc[target_zone, value_col]
-    else:
-        target_value = 0  # Handle case where GB00 might be missing
-        print(f"Warning: {target_zone} not found in dataframe.")
-
-    # 2. Sum everything else
-    # We drop the target zone and sum the remaining rows
-    rest_value = df.drop(index=target_zone, errors='ignore')[value_col].sum()
-
-    # 3. Return a clean mini-dataframe
-    return pd.Series({
-        target_zone: target_value,
-        other_label: rest_value
-    })
-
-# --- 3. Process Both Scenarios ---
-# Create the aggregated data for both
-#agg_sq = aggregate_regions(df_sq, opex_col_sq)
-#agg_iem = aggregate_regions(df_iem, opex_col_iem)
-
-
-# Alternative approach: Aggregate only GB neighbors
-# Your specific list of zones (includes GB00 + Neighbors)
-zones_of_interest = ['GB00', 'BE00', 'DE00', 'DKW1','FR00', 'GBNI', 'IE00', 'NL00', 'NOS0']
-
-# Define who is the "Main" zone and who are the "Neighbors"
-target_zone = 'GB00'
-neighbor_label = 'GB Neighbors'
-
-# Derive the neighbor list (Everyone in the list EXCEPT GB00)
-neighbor_zones = [z for z in zones_of_interest if z != target_zone]
-
-
-def aggregate_specific_zones(df, value_col, target, neighbors, neighbor_label):
     # 1. Get Target (GB00)
     if target in df.index:
         val_target = df.loc[target, value_col]
     else:
         val_target = 0
+        print(f"Warning: {target} not found in dataframe.")
 
-    # 2. Get Neighbors
-    # We filter the dataframe to only include rows that exist in our 'neighbor_zones' list
-    # The .reindex() ensures we don't crash if a neighbor is missing from the CSV (it just puts 0/NaN)
-    val_neighbors = df.reindex(neighbors)[value_col].sum()
+    # 2. Get Rest of EU (Everything EXCEPT Target)
+    # We drop the target zone and sum the entire remaining dataframe column
+    val_rest = df.drop(index=target, errors='ignore')[value_col].sum()
+
+    # 3. Get Total System (Sum of EVERYTHING)
+    val_total = df[value_col].sum()
 
     return pd.Series({
         target: val_target,
-        neighbor_label: val_neighbors
+        rest_label: val_rest,
+        total_label: val_total
     })
 
+# Define who is the "Main" zone and who are the "Neighbors"
+target_zone = 'GB00'
+rest_eu_label = 'Rest of EU'
+total_label = 'Total System'
 
 # Apply the function
-agg_sq = aggregate_specific_zones(df_sq, opex_col_sq, target_zone, neighbor_zones, neighbor_label)
-agg_iem = aggregate_specific_zones(df_iem, opex_col_iem, target_zone, neighbor_zones, neighbor_label)
+agg_sq = aggregate_rest_of_eu(df_sq, opex_col_sq, target_zone, rest_eu_label, total_label)
+agg_iem = aggregate_rest_of_eu(df_iem, opex_col_iem, target_zone, rest_eu_label, total_label)
 
 # --- 3. Calculate Percentage Change ---
 # Formula: (New - Old) / Old * 100

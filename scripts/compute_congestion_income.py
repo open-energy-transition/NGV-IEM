@@ -92,7 +92,7 @@ for interconnection in netflow_df.columns:
 
     netflow = netflow_df[interconnection]
 
-    # revenue = ΔP × flow (€/MWh × MW / 10e6 = M€/h)
+    # revenue = ΔP × flow (€/MWh × MW = €/h)
     revenue = price_difference * netflow
     income_dict[interconnection] = revenue
 

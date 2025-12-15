@@ -2,6 +2,9 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+#plt.style.use('Users/tpa/MyProjects/NGV-IEM/nside_colourmap/nside-main.mplstyle')
+
+nside_colours = ['#00ACC2', '#F4A74F', '#8CBB13', '#535F6B', '#D63487']
 
 #targetdir = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/congestion_income_metrics_status_quo.csv'
 #targetdir2 = '/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/congestion_income_metrics_iem.csv'
@@ -62,9 +65,9 @@ df_plot[['Volume Effect', 'Price Effect']].plot(
     kind='bar',
     stacked=True,
     ax=ax,
-    color=['#1f77b4', '#ff7f0e'],  # Blue for Vol, Orange for Price
+    color=nside_colours,  # Blue for Vol, Orange for Price
     width=0.8,
-    alpha=0.8
+    alpha=1
 )
 
 # Add the "Net Change" marker (The black diamond)

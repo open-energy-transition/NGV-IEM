@@ -13,7 +13,7 @@ df_price_diff= pd.read_csv(targetdir2, index_col=0)
 #df_price_diff = pd.read_csv(snakemake.input.pd_sq, index_col=0)
 
 # Select interconnection
-intercon = "GB00-FR00"
+intercon = "GB00-DE00"
 
 # TODO change filtering, to be done based on selected intercon
 
@@ -74,5 +74,64 @@ limit = max_abs_val * 1.1
 # 3. Apply the limits
 plt.xlim(-limit, limit)
 plt.title(f'Interconnector: {intercon}')
-plt.savefig('interconnector.pdf', bbox_inches='tight')
+plt.savefig('interconnector.png', bbox_inches='tight')
 plt.show()
+
+# Loop over all interconnections to extract explicit auction inefficiency --> % of sub-optimal flows
+suboptimal_results = {}
+
+# Define Price Threshold (Global constant)
+PRICE_THRESHOLD = 1.0
+
+# --- 2. Loop over Interconnections ---
+for intercon in df_netflow.columns:
+
+    if intercon not in df_price_diff.columns:
+        continue
+
+    # Create temporary views (Using pointers, not copies, saves memory)
+    flows = df_netflow[intercon]
+    prices = df_price_diff[intercon]
+
+    # Calculate P_max and Tolerance
+    P_max = flows.abs().max()
+
+    if P_max == 0:
+        suboptimal_results[intercon] = 0.0
+        continue
+
+    flow_tolerance = 0.05 * P_max
+
+    # --- 3. Vectorized Logic (The Fast Way) ---
+    # Instead of checking row-by-row, we create 3 Boolean Masks (True/False lists)
+
+    # Condition A: Prices are converged (Optimal regardless of flow)
+    cond_converged = prices.abs() <= PRICE_THRESHOLD
+
+    # Condition B: GB is Cheap -> Must Export (Flow near +P_max)
+    cond_export_ok = (prices > PRICE_THRESHOLD) & (flows >= (P_max - flow_tolerance))
+
+    # Condition C: GB is Expensive -> Must Import (Flow near -P_max)
+    cond_import_ok = (prices < -PRICE_THRESHOLD) & (flows <= -(P_max - flow_tolerance))
+
+    # Combine Conditions (A OR B OR C means Optimal)
+    is_optimal = cond_converged | cond_export_ok | cond_import_ok
+
+    # --- 4. Calculate Percentage ---
+    # In Python, True=1 and False=0.
+    # (~is_optimal) flips True to False. Summing gives the count of sub-optimal hours.
+    total_hours = len(flows)
+    suboptimal_count = (~is_optimal).sum()
+
+    pct_suboptimal = (suboptimal_count / total_hours) * 100
+    suboptimal_results[intercon] = pct_suboptimal
+
+# --- 5. Save Results ---
+df_results = pd.DataFrame.from_dict(
+    suboptimal_results,
+    orient='index',
+    columns=['Sub-optimal Hours [%]']
+)
+df_results = df_results.sort_values(by='Sub-optimal Hours [%]', ascending=False)
+
+print(df_results)
