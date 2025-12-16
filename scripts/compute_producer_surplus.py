@@ -5,6 +5,8 @@ import pandas as pd
 #-------- Load solved network -----#
 n = pypsa.Network(snakemake.input[0])
 
+n.snapshot_weightings.loc["2009-02-13 18:00:00", "objective"] = 0
+
 # Filter only the electricity related zonal buses (countries)
 list_of_zones = n.buses[n.buses["carrier"] == 'AC'].index
 

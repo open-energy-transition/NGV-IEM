@@ -46,6 +46,12 @@ rule all:
         expand("tables/total_congestion_income_{scenario}_{year}.csv",
            scenario=SCENARIOS, year=YEARS),
 
+        expand("tables/zonal_prices_timeseries_{scenario}_{year}.csv",
+           scenario=SCENARIOS, year=YEARS),
+
+        expand("tables/zonal_demand_timeseries_{scenario}_{year}.csv",
+           scenario=SCENARIOS, year=YEARS),
+
         # Comparisons (expanded by YEAR only, as they compare fixed scenarios)
         #expand("plots/congestion_income_comparison_{year}.png",year=YEARS),
         #expand("plots/netflow_comparison_{year}.png",year=YEARS),
@@ -54,6 +60,8 @@ rule all:
         expand("plots/congestion_income_difference_{year}.png", year=YEARS),
         expand("plots/netflow_difference_{year}.png", year=YEARS),
         expand("plots/price_difference_difference_{year}.png", year=YEARS),
+
+        expand("plots/comparison_weighted_price_spread_{year}.csv", year=YEARS),
 
         #expand("plots/congestion_income_relative_{year}.png", year=YEARS),
         #expand("plots/netflow_relative_{year}.png", year=YEARS),
@@ -115,6 +123,24 @@ rule congestion_income_computation:
         "tables/netflow_timeseries_{scenario}_{year}.csv",
     script:
         "../../scripts/compute_congestion_income.py"
+
+rule congestion_income_computation_weighted:
+    input:
+        sq = "tables/congestion_income_metrics_status_quo_{year}.csv",
+        iem = "tables/congestion_income_timeseries_iem_{year}.csv",
+    output:
+        "plots/comparison_weighted_price_spread_{year}.csv",
+    script:
+        "../../scripts/compare_weighted_price_spread.py"
+
+rule average_zonal_prices_computation:
+    input:
+        get_network
+    output:
+        "tables/zonal_prices_timeseries_{scenario}_{year}.csv",
+        "tables/zonal_demand_timeseries_{scenario}_{year}.csv",
+    script:
+        "../../scripts/compute_zonal_prices.py"
 
 rule total_congestion_income_computation:
     input:
