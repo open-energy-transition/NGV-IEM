@@ -69,7 +69,7 @@ netflow_df = pd.DataFrame({
 })
 
 #------ Calculate average netflow in each interconnection -----#
-average_netflow_df = netflow_df.mean(axis=0)
+total_exchanged_volume = netflow_df.abs().sum(axis=0)
 
 #------ Calculate congestion income per interconnection between bidding zones -------#
 
@@ -99,7 +99,7 @@ for interconnection in netflow_df.columns:
 income_df = pd.DataFrame(income_dict)
 
 #----------Calculate average price difference between neighbors -----#
-average_price_difference = prices_df[netflow_df.columns].mean(axis=0)
+average_price_difference = income_df.sum(axis=0) / total_exchanged_volume  # €/MWh
 
 #----------- Calculate the total annual results ----------
 
@@ -107,9 +107,9 @@ annual_income = income_df.sum()
 average_income = income_df.mean() #convert to Euros
 total_annual_income = annual_income.sum()
 
-final_df = pd.concat([annual_income, average_income, average_price_difference, average_netflow_df], axis = 1)
+final_df = pd.concat([annual_income, average_income, average_price_difference, total_exchanged_volume], axis = 1)
 final_df = final_df.rename(columns={0: "Total annual congestion income [€]", 1: "Average congestion income [€/h]",
-                                    2: "Average Price Difference [Euros/MWh]", 3: "Average Netflow [MW]"})
+                                    2: "Average Price Difference [Euros/MWh]", 3: "Total exchanged volume [MW]"})
 #----------- Export results to table -----------#
 
 final_df.to_csv(snakemake.output[0], index=True)
