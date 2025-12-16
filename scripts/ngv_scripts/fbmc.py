@@ -619,19 +619,6 @@ def modify_network_for_fbmc(n: pypsa.Network, config: dict) -> pypsa.Network:
     n.links.loc[idx, "PTDF_type"] = "PTDF*_AHC,SZ"
     n.links.loc[idx, "FBMC_region"] = "CORE-Outside"
 
-    # Remove any limits on any of the links covered by the FBMC constraints
-    # the original limits are NTC limits that are now superseded by the FBMC constraints
-    logger.info("Removing NTC limits on links covered by FBMC constraints.")
-    fbmc_links_idx = n.links.loc[n.links["PTDF_type"].isin(["PTDF*_AHC,SZ"])].index
-    n.links.loc[fbmc_links_idx, "p_nom"] = np.inf
-    n.links.loc[fbmc_links_idx, "p_nom_extendable"] = False
-    # also remove constraints on dispatch of these links
-    for param in ["p_max_pu", "p_min_pu"]:
-        cols = n.components.links.dynamic[param].columns.intersection(fbmc_links_idx)
-        n.components.links.dynamic[param] = n.components.links.dynamic[param].drop(
-            columns=cols
-        )
-
     # 3. PTDF_EvFB for flows related to the evolved FB
     idx = n.components.links.static.filter(
         regex=r"^EvFBA\d-EvFBA\d$", axis="index"
