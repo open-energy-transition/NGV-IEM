@@ -16,10 +16,10 @@ df_sq = pd.read_csv(snakemake.input.metrics_sq, index_col=0)
 df_iem = pd.read_csv(snakemake.input.metrics_iem, index_col=0)
 
 P_old = df_sq['Average Price Difference [Euros/MWh]']
-Q_old = df_sq['Average Netflow [MW]']
+Q_old = df_sq['Total exchanged volume [MW]']
 
 P_new = df_iem['Average Price Difference [Euros/MWh]']
-Q_new = df_iem['Average Netflow [MW]']
+Q_new = df_iem['Total exchanged volume [MW]']
 
 # 3. Calculate The Variance Decomposition
 # Delta Volume = (Change in Flow) * Old Price

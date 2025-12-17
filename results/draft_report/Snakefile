@@ -75,7 +75,7 @@ rule all:
         #expand("plots/netflow_relative_{year}.png", year=YEARS),
         #expand("plots/price_difference_relative_{year}.png", year=YEARS),
 
-        #expand("plots/visualize_price_and_flow_effect_{year}.png",year=YEARS),
+        expand("plots/visualize_price_and_flow_effect_{year}.png",year=YEARS),
         #expand("plots/visualize_price_and_flow_effect_alternative_{year}.png",year=YEARS),
         #expand("plots/congestion_income_parity_plot_{year}.png",year=YEARS),
         #expand("plots/congestion_income_parity_plot_per_interconnection_{year}.png",year=YEARS),
