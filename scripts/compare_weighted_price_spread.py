@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-if snakemake in globals():
+if "snakemake" in globals():
     df_sq = pd.read_csv(snakemake.input.sq, index_col=0)
     df_iem = pd.read_csv(snakemake.input.iem, index_col=0)
 else:
