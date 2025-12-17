@@ -50,10 +50,13 @@ rule all:
         expand("tables/total_congestion_income_{scenario}_{year}.csv",
            scenario=SCENARIOS, year=YEARS),
 
-        expand("tables/zonal_prices_timeseries_{scenario}_{year}.csv",
+        expand("tables/weighted_average_zonal_prices_{scenario}_{year}.csv",
            scenario=SCENARIOS, year=YEARS),
 
-        expand("tables/zonal_demand_timeseries_{scenario}_{year}.csv",
+        expand("tables/average_zonal_prices_{scenario}_{year}.csv",
+           scenario=SCENARIOS, year=YEARS),
+
+        expand("tables/country_netposition_{scenario}_{year}.csv",
            scenario=SCENARIOS, year=YEARS),
 
         # Comparisons (expanded by YEAR only, as they compare fixed scenarios)
@@ -89,6 +92,10 @@ rule all:
         expand("tables/comparison_total_congestion_income_{year}.csv", year=YEARS),
 
         expand("tables/total_welfare_change_{year}.csv", year=YEARS),
+
+        expand("tables/comparison_weighted_average_zonal_prices_{year}.csv", year=YEARS),
+
+        expand("tables/comparison_country_netposition_{year}.csv", year=YEARS),
 
 
         # Output for the Special Scenario: Explicit auction emulation - model run with forecast errors
@@ -140,14 +147,40 @@ rule congestion_income_computation_weighted:
     script:
         "../../scripts/compare_weighted_price_spread.py"
 
-rule average_zonal_prices_computation:
+rule weighted_average_zonal_prices_computation:
     input:
         get_network
     output:
-        "tables/zonal_prices_timeseries_{scenario}_{year}.csv",
-        "tables/zonal_demand_timeseries_{scenario}_{year}.csv",
+        "tables/weighted_average_zonal_prices_{scenario}_{year}.csv",
+        "tables/average_zonal_prices_{scenario}_{year}.csv",
     script:
         "../../scripts/compute_zonal_prices.py"
+
+rule country_netposition_computation:
+    input:
+        get_network
+    output:
+        "tables/country_netposition_{scenario}_{year}.csv",
+    script:
+        "../../scripts/compute_country_netposition.py"
+
+rule country_netposition_comparison:
+    input:
+        sq="tables/country_netposition_status_quo_{year}.csv",
+        iem="tables/country_netposition_iem_{year}.csv",
+    output:
+        "tables/comparison_country_netposition_{year}.csv",
+    script:
+        "../../scripts/compare_country_netposition.py"
+
+rule weighted_average_zonal_prices_comparison:
+    input:
+        sq = "tables/weighted_average_zonal_prices_status_quo_{year}.csv",
+        iem = "tables/weighted_average_zonal_prices_iem_{year}.csv",
+    output:
+        "tables/comparison_weighted_average_zonal_prices_{year}.csv",
+    script:
+        "../../scripts/compare_zonal_prices.py"
 
 rule total_congestion_income_computation:
     input:
