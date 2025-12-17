@@ -2,6 +2,26 @@ import pypsa
 import pandas as pd
 
 
+class MockSnakemake:
+    def __init__(self, scenario: str, year: int=2030):
+        sc_names = {
+            "status_quo": "lluk",
+            "iem": ""
+        }
+        self.input = [
+            f"../resources/base_s_all_{sc_names[scenario]}__{year}.nc",
+        ]
+        self.output = [
+            f"../results/draft_report/tables/congestion_income_metrics_{scenario}_{year}.csv",
+            f"../results/draft_report/tables/congestion_income_timeseries_{scenario}_{year}.csv",
+            f"../results/draft_report/tables/price_difference_timeseries_{scenario}_{year}.csv",
+            f"../results/draft_report/tables/netflow_timeseries_{scenario}_{year}.csv",
+            f"../results/draft_report/tables/imports_timeseries_{scenario}_{year}.csv",
+            f"../results/draft_report/tables/exports_timeseries_{scenario}_{year}.csv",
+        ]
+
+if "snakemake" not in globals():
+    snakemake = MockSnakemake("status_quo", 2030)
 
 #-------- Load solved network -----#
 n = pypsa.Network(snakemake.input[0])
@@ -67,6 +87,8 @@ netflow_df = pd.DataFrame({
     interconnection: flow_df[links].sum(axis=1)
     for interconnection, links in groups.items()
 })
+imports_df = netflow_df.clip(upper=0).abs()
+exports_df = netflow_df.clip(lower=0)
 
 #------ Calculate average netflow in each interconnection -----#
 total_exchanged_volume = netflow_df.abs().sum(axis=0)
@@ -116,3 +138,5 @@ final_df.to_csv(snakemake.output[0], index=True)
 income_df.to_csv(snakemake.output[1], index=True)
 prices_df[netflow_df.columns].to_csv(snakemake.output[2], index=True)
 netflow_df.to_csv(snakemake.output[3], index=True)
+imports_df.to_csv(snakemake.output[4], index=True)
+exports_df.to_csv(snakemake.output[5], index=True)
