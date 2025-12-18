@@ -98,6 +98,18 @@ def remove_components_added_in_solve_network_py(n: pypsa.Network) -> pypsa.Netwo
     return n
 
 
+def add_electrolysis_constraints(
+    n: pypsa.Network
+) -> pypsa.Network:
+    """
+    Constrain electrolysis dispatch to be the same as in the pre-solved network
+    """
+    electrolysis_i = n.links[n.links.carrier=="H2 Electrolysis"].index
+    n.links_t.p_min_pu.loc[:, electrolysis_i] = n.links_t.p0.loc[:, electrolysis_i]
+    n.links_t.p_max_pu.loc[:, electrolysis_i] = n.links_t.p0.loc[:, electrolysis_i]
+
+    return n 
+
 def add_scenario_uncertainty(
     n: pypsa.Network, scenario_name: str, error_fp: str = None
 ) -> pypsa.Network:
@@ -304,6 +316,8 @@ if __name__ == "__main__":
 
     n = turn_optimisation_to_dispatch(n)
     n = remove_components_added_in_solve_network_py(n)
+    n = add_electrolysis_constraints(n)
+    n.optimize.fix_optimal_capacities()
 
     for uncertainty_scenario in snakemake.params.uncertainty_scenarios:
         n_uncertain = add_scenario_uncertainty(

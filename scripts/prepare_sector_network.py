@@ -8035,6 +8035,18 @@ def get_capacities_from_elec(n, carriers, component):
     return capacity_dict, efficiency_dict
 
 
+def add_ireland_link(
+    n: pypsa.Network
+):
+    """
+    Adds virtual unlimited link between Ireland and Northern Ireland for aggregation purposes
+    """
+    links_i = ["IE00-GBNI-DC", "GBNI-IE00-DC"]
+    n.links.loc[links_i,'p_nom'] = np.inf
+    n.links.loc[links_i, "capital_cost"]  = 0
+
+    return n
+
 def add_import_options(
     n: pypsa.Network,
     costs: pd.DataFrame,
@@ -8708,6 +8720,10 @@ if __name__ == "__main__":
     maybe_adjust_costs_and_potentials(
         n, snakemake.params["adjustments"], investment_year
     )
+
+    ireland_link = True
+    if ireland_link:
+        n = add_ireland_link(n)
 
     n.meta = dict(snakemake.config, **dict(wildcards=dict(snakemake.wildcards)))
 

@@ -4,7 +4,7 @@
 
 run:
   prefix: "ngv-iem"
-  name: "status_quo"
+  name: "status_quo_1H"
   scenarios:
     enable: false
   
@@ -15,6 +15,11 @@ uncertainty_scenarios:
 - trader-forecast
 
 fbmc: false
+
+snapshots:
+  # TODO define multiple climatic years, being either 1995 2008 or 2009
+  start: "2009-01-01"
+  end: "2010-01-01"
 
 scenario:
   clusters:
@@ -39,3 +44,8 @@ sector:
 
 benchmarking:
   enable: false
+
+solving:
+  options:
+    clip_p_max_pu: 1.e-2
+    load_shedding: 1.e+5
