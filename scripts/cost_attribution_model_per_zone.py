@@ -14,20 +14,39 @@ def calculate_zonal_opex(n, zone):
     # Filter all electricity suppliers of the country using the energy_balance
     ac_balance_per_bus = n.statistics.energy_balance(bus_carrier="AC", groupby=["bus", "name", "carrier"])
     ac_balance = ac_balance_per_bus.xs(zone, level=1)
-    ac_suppliers = ac_balance[ac_balance > 0]  #need to take care of DC_OH
+    ac_suppliers = ac_balance[ac_balance > 0]
+
+    # Include the offshore hubs of the zone
+    ac_balance_per_bus_offshore = n.statistics.energy_balance(bus_carrier="AC_OH", groupby=["bus", "name", "carrier"])
+    ac_balance_offshore = ac_balance_per_bus_offshore[ac_balance_per_bus_offshore.index.get_level_values("bus").str.startswith(zone[0:2])]
+    ac_suppliers_offshore = ac_balance_offshore[ac_balance_offshore > 0]
+
+    # Exclude DC links
+    excluded_carriers = ["DC", "DC_OH"]
+    ac_suppliers = ac_suppliers[~ac_suppliers.index.get_level_values("carrier").isin(excluded_carriers)]
+    ac_suppliers_offshore = ac_suppliers_offshore[~ac_suppliers_offshore.index.get_level_values("carrier").isin(excluded_carriers)]
+    ac_suppliers_offshore = ac_suppliers_offshore.droplevel("bus")
+
+    all_suppliers_data = pd.concat([ac_suppliers, ac_suppliers_offshore])
 
     # Convert to list, so that we can loop over all components
     ac_suppliers_list = ac_suppliers.index.tolist()
+    ac_suppliers_list_offshore = ac_suppliers_offshore.index.tolist()
+
+    ac_suppliers_full_list = ac_suppliers_list_offshore + ac_suppliers_list
 
     # Extract raw opex of the system (to include both fuel generators and links generators)
     raw_opex = n.statistics.opex()
     raw_opex_detailed = n.statistics.opex(groupby = False)
-    #raw_opex = n.statistics.opex(groupby=["bus", "carrier"])
 
     results = []
 
-    for component_type, name, technology in ac_suppliers_list:  #component type = Generator, Link etc. technology = carrier of component (e.g. gas-ocgt, oil-light etc.)
+    for component_type, name, technology in ac_suppliers_full_list:  #component type = Generator, Link etc. technology = carrier of component (e.g. gas-ocgt, oil-light etc.)
 
+
+        # Get energy output of each generation technology
+
+        energy_output = all_suppliers_data.loc[(component_type, name, technology)]
         # A. Get the Direct Cost (VOM)
         # ----------------------------
         try:
@@ -119,6 +138,7 @@ def calculate_zonal_opex(n, zone):
             # Update Total
             total_opex = direct_opex + indirect_opex
 
+        marginal_cost = (total_opex / energy_output) if energy_output > 1e-6 else 0.0
 
         # --- C. Store Result ---
         results.append({
@@ -129,12 +149,17 @@ def calculate_zonal_opex(n, zone):
             "Direct_OPEX_MEUR": direct_opex / 1e6,
             "Indirect_Fuel_OPEX_MEUR": indirect_opex / 1e6,
             "Fuel_Share_Pct": technology_share * 100,
-            "Total_Supply_Cost_MEUR": total_opex / 1e6
+            "Total_Supply_Cost_MEUR": total_opex / 1e6,
+            "Energy_Output_TWh": energy_output/1e6,
+            "Marginal Cost_EUR/MWh": marginal_cost,
         })
 
 
     # 4. Create DataFrame and Display
     df_granular = pd.DataFrame(results)
+
+    if df_granular.empty:
+        return 0.0
 
     df_aggregated = df_granular.groupby(["Component_Type", "Technology"]).sum(numeric_only=True)
 

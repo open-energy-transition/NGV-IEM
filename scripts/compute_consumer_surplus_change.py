@@ -5,12 +5,12 @@ import pandas as pd
 import matplotlib.ticker as mtick # For nice % formatting
 
 # Load networks from two scenarios
-n_status_quo = pypsa.Network(snakemake.input.network_status_quo)
+n_sq = pypsa.Network(snakemake.input.network_status_quo)
 n_iem = pypsa.Network(snakemake.input.network_iem)
 
 
 # TO DO better define the countries (in accordance with TYNDP)
-list_of_zones = n_status_quo.buses[n_status_quo.buses["carrier"] == 'AC']
+list_of_zones = n_sq.buses[n_sq.buses["carrier"] == 'AC']
 #list_of_zones = n_status_quo.loads[n_status_quo.loads.carrier == "electricity"]
 
 # Dictionary to store results
@@ -18,16 +18,24 @@ change_consumer_surplus_dict = {}
 
 for zone in list_of_zones.index:
 
-    # Determine loads connected to zone (Probably always 1 load per zone)
-    zonal_loads_status_quo = n_status_quo.loads[n_status_quo.loads.index == zone].index
-    zonal_loads_iem = n_iem.loads[n_iem.loads.index == zone].index
+    ac_balance_per_bus_sq = n_sq.statistics.energy_balance(bus_carrier="AC", groupby=["bus", "name", "carrier"], groupby_time = False)
+    ac_balance_per_bus_iem = n_iem.statistics.energy_balance(bus_carrier="AC", groupby=["bus", "name", "carrier"])
 
-    # Get electricity demand of zone for each scenario (Probably same in both)
-    zonal_demand_status_quo = n_status_quo.loads_t.p[zonal_loads_status_quo].sum(axis = 1)
-    zonal_demand_iem = n_iem.loads_t.p[zonal_loads_iem].sum(axis = 1)
+    ac_balance_sq = ac_balance_per_bus_sq.xs(zone, level=1)
+    ac_balance_iem = ac_balance_per_bus_iem.xs(zone, level=1)
+
+    ac_demand_sq = ac_balance_sq[ac_balance_sq < 0]
+    ac_demand_iem = ac_balance_iem[ac_balance_iem < 0]
+
+    excluded_carriers = ["DC", "DC_OH", "battery charger"]
+    ac_demand_sq = ac_demand_sq[~ac_demand_sq.index.get_level_values("carrier").isin(excluded_carriers)]
+    ac_demand_iem = ac_demand_iem[~ac_demand_iem.index.get_level_values("carrier").isin(excluded_carriers)]
+
+    zonal_demand_status_quo = - ac_demand_sq.sum(axis = 0)
+    zonal_demand_iem = - ac_demand_iem.sum()
 
     # Get zonal prices in each scenario
-    zonal_price_status_quo = n_status_quo.buses_t.marginal_price[zone]
+    zonal_price_status_quo = n_sq.buses_t.marginal_price[zone]
     zonal_price_iem = n_iem.buses_t.marginal_price[zone]
 
     # Compute change in consumer surplus: Use status_quo as reference --> positive change = prices at iem are lower (benefit for consumers)
