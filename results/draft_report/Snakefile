@@ -97,6 +97,8 @@ rule all:
 
         expand("tables/comparison_country_netposition_{year}.csv", year=YEARS),
 
+        expand("tables/netflow_timeseries_trader_forecast_{year}.csv", year=YEARS),
+
 
         # Output for the Special Scenario: Explicit auction emulation - model run with forecast errors
         # Note: We only expand over YEARS here, because there is only one special scenario
@@ -112,6 +114,19 @@ rule compute_congestion_revenue:
         "tables/congestion_revenue_special_{year}.csv"
     script:
         "../../scripts/compute_congestion_revenue.py"
+
+rule congestion_income_computation_trader_forecast:
+    input:
+        lambda wc: config["special_scenario"][int(wc.year)]
+    output:
+        "tables/congestion_income_metrics_trader_forecast_{year}.csv",
+        "tables/congestion_income_timeseries_trader_forecast_{year}.csv",
+        "tables/price_difference_timeseries_trader_forecast_{year}.csv",
+        "tables/netflow_timeseries_trader_forecast_{year}.csv",
+        "tables/imports_timeseries_trader_forecast_{year}.csv",
+        "tables/exports_timeseries_trader_forecast_{year}.csv",
+    script:
+        "../../scripts/compute_congestion_income.py"
 
 rule compare_congestion_revenue:
     input:
