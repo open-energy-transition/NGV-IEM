@@ -8,6 +8,9 @@ import matplotlib.ticker as mtick # For nice % formatting
 n_sq = pypsa.Network(snakemake.input.network_status_quo)
 n_iem = pypsa.Network(snakemake.input.network_iem)
 
+#n_sq = pypsa.Network("/Users/tpa/MyProjects/NGV-IEM/resources/base_s_all_lluk__2030.nc")
+#n_iem = pypsa.Network("/Users/tpa/MyProjects/NGV-IEM/resources/base_s_all___2030.nc")
+
 
 # TO DO better define the countries (in accordance with TYNDP)
 list_of_zones = n_sq.buses[n_sq.buses["carrier"] == 'AC']
@@ -19,7 +22,7 @@ change_consumer_surplus_dict = {}
 for zone in list_of_zones.index:
 
     ac_balance_per_bus_sq = n_sq.statistics.energy_balance(bus_carrier="AC", groupby=["bus", "name", "carrier"], groupby_time = False)
-    ac_balance_per_bus_iem = n_iem.statistics.energy_balance(bus_carrier="AC", groupby=["bus", "name", "carrier"])
+    ac_balance_per_bus_iem = n_iem.statistics.energy_balance(bus_carrier="AC", groupby=["bus", "name", "carrier"], groupby_time = False)
 
     ac_balance_sq = ac_balance_per_bus_sq.xs(zone, level=1)
     ac_balance_iem = ac_balance_per_bus_iem.xs(zone, level=1)

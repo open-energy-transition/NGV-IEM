@@ -53,8 +53,8 @@ rule all:
         expand("tables/weighted_average_zonal_prices_{scenario}_{year}.csv",
            scenario=SCENARIOS, year=YEARS),
 
-        expand("tables/average_zonal_prices_{scenario}_{year}.csv",
-           scenario=SCENARIOS, year=YEARS),
+        #expand("tables/average_zonal_prices_{scenario}_{year}.csv",
+        #   scenario=SCENARIOS, year=YEARS),
 
         expand("tables/country_netposition_{scenario}_{year}.csv",
            scenario=SCENARIOS, year=YEARS),
@@ -82,12 +82,12 @@ rule all:
         #expand("plots/netflow_parity_plot_per_interconnection_{year}.png", year=YEARS),
         #expand("plots/price_difference_parity_plot_per_interconnection_{year}.png", year=YEARS),
         expand("tables/comparison_total_opex_{year}.csv", year=YEARS),
-        expand("tables/comparison_total_capex_{year}.csv", year=YEARS),
-        expand("plots/comparison_total_opex_{year}.png",year=YEARS),
+        #expand("tables/comparison_total_capex_{year}.csv", year=YEARS),
+        #expand("plots/comparison_total_opex_{year}.png",year=YEARS),
         expand("tables/comparison_producer_surplus_{year}.csv",year=YEARS),
-        expand("plots/comparison_producer_surplus_{year}.png", year=YEARS),
+        #expand("plots/comparison_producer_surplus_{year}.png", year=YEARS),
         expand("tables/comparison_consumer_surplus_{year}.csv", year=YEARS),
-        expand("plots/comparison_consumer_surplus_{year}.png", year=YEARS),
+        #expand("plots/comparison_consumer_surplus_{year}.png", year=YEARS),
 
         expand("tables/comparison_total_congestion_income_{year}.csv", year=YEARS),
 

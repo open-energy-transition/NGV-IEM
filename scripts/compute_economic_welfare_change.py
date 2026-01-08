@@ -1,15 +1,15 @@
 import pandas as pd
 
 
-#df_cong_inc = pd.read_csv(snakemake.input.cong_inc, index_col=0)
-#df_prod_sur = pd.read_csv(snakemake.input.prod_sur, index_col=0)
-#df_cons_sur = pd.read_csv(snakemake.input.cons_sur, index_col=0)
-#df_opex = pd.read_csv(snakemake.input.opex, index_col=0)
+df_cong_inc = pd.read_csv(snakemake.input.cong_inc, index_col=0)
+df_prod_sur = pd.read_csv(snakemake.input.prod_sur, index_col=0)
+df_cons_sur = pd.read_csv(snakemake.input.cons_sur, index_col=0)
+df_opex = pd.read_csv(snakemake.input.opex, index_col=0)
 
-df_cong_inc = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_total_congestion_income_2030.csv", index_col=0)
-df_prod_sur = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_producer_surplus_2030.csv", index_col=0)
-df_cons_sur = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_consumer_surplus_2030.csv", index_col=0)
-df_opex = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_total_opex_2030.csv", index_col=0)
+#df_cong_inc = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_total_congestion_income_2030.csv", index_col=0)
+#df_prod_sur = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_producer_surplus_2030.csv", index_col=0)
+#df_cons_sur = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_consumer_surplus_2030.csv", index_col=0)
+#df_opex = pd.read_csv("/Users/tpa/MyProjects/NGV-IEM/results/draft_report/tables/comparison_total_opex_2030.csv", index_col=0)
 
 
 tot_cong_inc = df_cong_inc.loc["Total System", "Annual_Congestion_Rent_EUR"]/1e6  # convert to Million Euros

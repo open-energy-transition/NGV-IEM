@@ -39,6 +39,9 @@ def calculate_zonal_opex(n, zone):
     raw_opex = n.statistics.opex()
     raw_opex_detailed = n.statistics.opex(groupby = False)
 
+    # Get CO2 price
+    co2_price = - n.stores[n.stores.carrier == "co2"].marginal_cost.mean()
+
     results = []
 
     for component_type, name, technology in ac_suppliers_full_list:  #component type = Generator, Link etc. technology = carrier of component (e.g. gas-ocgt, oil-light etc.)
@@ -59,10 +62,25 @@ def calculate_zonal_opex(n, zone):
         total_opex = direct_opex  # Start with VOM
         input_bus_carrier = "None"
         technology_share = 0.0
+        co2_cost = 0.0
+        co2_emissions_total = 0.0
 
         # B. Calculate Indirect Cost (Fuel cost) - ONLY FOR LINKS
         # --------------------------------------------------
         if component_type == "Link":
+
+            # Get CO2 emissions and CO2 cost
+            bus2 = n.links.at[name, "bus2"]
+
+            if isinstance(bus2, str) and "co2" in bus2.lower():
+                try:
+                    co2_emissions_total = abs(n.links_t.p2[name].sum())
+                    co2_cost = co2_emissions_total * co2_price
+
+                except KeyError:
+                    co2_emissions_total = 0.0
+                    co2_cost = 0.0
+
             # GAS TECHNOLOGIES
             if technology in ["gas-ccgt", "gas-ocgt", "gas-ccgt-ccs", "gas-conv", "Open-Cycle Gas"]:
                 input_bus_carrier = "gas"
@@ -135,10 +153,33 @@ def calculate_zonal_opex(n, zone):
                 total_fuel_cost = raw_opex.loc[("Generator", input_bus_carrier)]
                 indirect_opex = technology_share * total_fuel_cost
 
+            # HYDROGEN TECHNOLOGIES
+            elif technology in ["h2-ccgt", "h2-fuel-cell"]:
+
+                input_bus_carrier = "H2"
+                #bus0 = zone[0:2] + " H2"
+                bus0 = n.links.at[name, "bus0"]
+                # Get timeseries of hydrogen consumption of generation unit
+                h2_balance_ts = n.statistics.energy_balance(bus_carrier=input_bus_carrier, groupby=["bus", "name", "carrier"], groupby_time= False)
+                h2_balance_local = h2_balance_ts.xs(bus0, level=1)
+                hydrogen_consumption = - h2_balance_local.loc[(component_type, name, technology)]
+
+                # Alternative way of getting h2 consumption
+                #hydrogen_consumption = n.links_t.p0[name]
+
+                # Get timeseries of H2 zonal price
+                hydrogen_prices = n.buses_t.marginal_price[bus0]
+
+                # Get fuel cost
+                fuel_cost = hydrogen_prices * hydrogen_consumption
+                total_fuel_cost = fuel_cost.sum()
+                indirect_opex = total_fuel_cost
+
             # Update Total
-            total_opex = direct_opex + indirect_opex
+            total_opex = direct_opex + indirect_opex + co2_cost
 
         marginal_cost = (total_opex / energy_output) if energy_output > 1e-6 else 0.0
+        co2_cost_per_mwh = (co2_cost/energy_output) if energy_output > 1e-6 else 0.0
 
         # --- C. Store Result ---
         results.append({
@@ -149,6 +190,9 @@ def calculate_zonal_opex(n, zone):
             "Direct_OPEX_MEUR": direct_opex / 1e6,
             "Indirect_Fuel_OPEX_MEUR": indirect_opex / 1e6,
             "Fuel_Share_Pct": technology_share * 100,
+            "CO2 emissions [tCO2]": co2_emissions_total,
+            "CO2 cost_MEUR": co2_cost/1e6,
+            "CO2 cost per MWh": co2_cost_per_mwh,
             "Total_Supply_Cost_MEUR": total_opex / 1e6,
             "Energy_Output_TWh": energy_output/1e6,
             "Marginal Cost_EUR/MWh": marginal_cost,
