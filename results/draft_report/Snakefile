@@ -99,6 +99,8 @@ rule all:
 
         expand("tables/netflow_timeseries_trader_forecast_{year}.csv", year=YEARS),
 
+        expand("plots/explicit_allocation_inefficiency_plot_status_quo_{year}.png", year=YEARS),
+
 
         # Output for the Special Scenario: Explicit auction emulation - model run with forecast errors
         # Note: We only expand over YEARS here, because there is only one special scenario
@@ -354,6 +356,7 @@ rule plot_explicit_allocation_inefficiency_status_quo:
         pd_sq="tables/price_difference_timeseries_status_quo_{year}.csv",
     output:
         "plots/explicit_allocation_inefficiency_plot_status_quo_{year}.png",
+        "tables/explicit_allocation_inefficiency_{year}.csv"
     script:
         "../../scripts/plot_explicit_allocation_inefficiency.py"
 

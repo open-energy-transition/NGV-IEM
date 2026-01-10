@@ -74,7 +74,7 @@ def calculate_zonal_opex(n, zone):
 
             if isinstance(bus2, str) and "co2" in bus2.lower():
                 try:
-                    co2_emissions_total = abs(n.links_t.p2[name].sum())
+                    co2_emissions_total = -(n.links_t.p2[name].sum())
                     co2_cost = co2_emissions_total * co2_price
 
                 except KeyError:
@@ -94,10 +94,16 @@ def calculate_zonal_opex(n, zone):
                 # Find share of technology in the consumption of the primary fuel
                 technology_share = - fuel_balance.loc[(component_type, name, technology)] / fuel_supply
 
+                # Find amount of CO2 absorbed because of biogas-to-gas process
+                process_name = n.links.query("carrier == 'biogas to gas'").index.tolist()[0]
+                co2_absorbed = n.links_t.p2[process_name].sum()
+                co2_benefits = co2_price * co2_absorbed
+
                 # Get total primary fuel OPEX --> Should include Sabatier process and cost of H2?, but minor impact
                 total_fuel_cost = (raw_opex.loc[("Generator", primary_source)]  # fuel cost of EU gas
                                    + raw_opex.loc[("Generator", second_primary_source)]  # fuel cost of EU biogas
-                                   + raw_opex.loc[("Link", "biogas to gas")])  # opex of conversion from biogas to gas
+                                   + raw_opex.loc[("Link", "biogas to gas")]  # opex of conversion from biogas to gas
+                                   - co2_benefits)          # reduction of opex because of co2 absorption in biogas to gas process
 
                 # Get total fuel cost of technology
                 indirect_opex = technology_share * total_fuel_cost
@@ -118,13 +124,26 @@ def calculate_zonal_opex(n, zone):
                 # Find share of technology in the consumption of the primary fuel
                 technology_share = - fuel_balance.loc[(component_type, name, technology)] / fuel_supply
 
+                # Find amount of CO2 absorbed because of biomass to liquid (CC) processes
+                process_name_1 = n.links.query("carrier == 'biomass to liquid'").index.tolist()[0]
+                process_name_2 = n.links.query("carrier == 'biomass to liquid CC'").index.tolist()[0]
+                co2_absorbed_1 = n.links_t.p2[process_name_1].sum()
+                co2_absorbed_2 = n.links_t.p2[process_name_2].sum()
+                co2_benefits = co2_price * (co2_absorbed_1 + co2_absorbed_2)
+
+                # Find amount of CO2 emitted because of oil refining
+                process_name_3 = n.links.query("carrier == 'oil refining'").index.tolist()[0]
+                co2_emitted = - n.links_t.p2[process_name_3].sum()
+                co2_costs = co2_emitted * co2_price
+
                 # Specifically for the oil, we need to convert to primary oil
                 # Get total primary fuel OPEX
                 total_fuel_cost = (raw_opex.loc[("Generator", primary_source)]  # fuel cost of EU oil primary
                                    + raw_opex.loc[("Generator", second_primary_source)]  # fuel cost of EU solid biomass
-                                   + raw_opex.loc[("Link", "oil refining")]
-                                   + raw_opex.loc[("Link", "biomass to liquid")]
-                                   + raw_opex.loc[("Link", "biomass to liquid CC")])
+                                   + raw_opex.loc[("Link", "oil refining")]             # opex of conversion from oil primary to oil
+                                   + raw_opex.loc[("Link", "biomass to liquid")]        # opex of conversion from biomass to liquid
+                                   + raw_opex.loc[("Link", "biomass to liquid CC")]     # opex of conversion from biomass to liquid CC
+                                   -  co2_benefits + co2_costs)                         # CO2 costs and benefits from the conversion processes
 
                 # Get total fuel cost of technology
                 indirect_opex = technology_share * total_fuel_cost
