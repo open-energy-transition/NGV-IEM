@@ -271,7 +271,10 @@ def calculate_zonal_revenue(n, zone):
         energy_output = all_suppliers_data.loc[(component_type, name, technology)]
 
         # Get revenues of each generation technology
-        revenue = raw_revenue_detailed.loc[(component_type, name)]
+        try:
+            revenue = raw_revenue_detailed.loc[(component_type, name)]
+        except KeyError:
+            revenue = 0.0
 
         # Get zonal price
         zonal_price = n.buses_t.marginal_price[zone]
