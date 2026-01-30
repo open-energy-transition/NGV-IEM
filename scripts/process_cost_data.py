@@ -305,6 +305,13 @@ def update_costs_tyndp(
             * costs.at[ccs_map["fuel"], "CO2 intensity"]
         )
 
+        # Update capital cost with cost component for capture
+        costs.loc[ccs_tech, "capital_cost"] = (
+            costs.at[ccs_map["base_tech"], "capital_cost"]
+            + costs.at[ccs_map["capture_tech"], "capital_cost"]
+            * costs.at[ccs_map["fuel"], "CO2 intensity"]
+        )
+
         # Remaining CO2 intensity after capture
         costs.loc[ccs_tech, "CO2 intensity"] = costs.at[
             ccs_map["fuel"], "CO2 intensity"
