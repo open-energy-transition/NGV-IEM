@@ -37,6 +37,10 @@ Upcoming Open-TYNDP Release
 
 * Added TYNDP electrolyzer capacities for the National Trends scenario using PEMMDB data (https://github.com/open-energy-transition/open-tyndp/pull/248).
 
+**Changes**
+
+* Improve general assumptions for NT scenario (https://github.com/open-energy-transition/open-tyndp/pull/430). This includes refining assumptions relating to efficiencies, fuel costs and extendable technologies.
+
 **Bugfixes and Compatibility**
 
 * Fix benchmarking workflow to account for not spatially resolved methane demand and more missing data (https://github.com/open-energy-transition/open-tyndp/pull/205)
