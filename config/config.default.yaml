@@ -1122,8 +1122,8 @@ solving:
     SAFE: false
 
   solver:
-    name: gurobi
-    options: gurobi-default
+    name: cplex
+    options: cplex-default
 
   solver_options:
     highs-default:
