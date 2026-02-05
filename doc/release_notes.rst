@@ -60,6 +60,8 @@ Upcoming Open-TYNDP Release
 
 * Correctly attach planning year dependent renewable profiles from PECD to solar and onwind generators (https://github.com/open-energy-transition/open-tyndp/pull/265).
 
+* Fix to allow for bidirectional electricity and hydrogen interconnections between offshore hubs (https://github.com/open-energy-transition/open-tyndp/pull/445). To shore connections remain unidirectional as defined in the inputs.
+
 
 Upcoming PyPSA-Eur Release
 ================
