@@ -178,6 +178,9 @@ cmd = """
     snakemake --cores all --configfile config/config.ngv.yaml --rerun-incomplete --keep-going {{ dryrun }}
 """
 
+[feature.ngv.dependencies]
+hvplot = ">=0.12.2"
+
 [environments]
 doc = { features = ["doc"], no-default-feature = true }
 test = ["test"]
