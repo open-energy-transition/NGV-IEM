@@ -307,6 +307,7 @@ rule extract_uncertainty_results:
         "Extracting results from uncertainty analysis scenarios for subsequent processing."
     params:
         uncertainty_scenarios=config["uncertainty_scenarios"],
+        explicit_allocation=config_provider("explicit_allocation"),
     input:
         networks=[
             RESULTS
