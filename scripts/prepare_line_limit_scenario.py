@@ -123,47 +123,77 @@ def restrict_elec_flows(n: pypsa.Network, line_limits_fp: str) -> pypsa.Network:
     return n
 
 
-def restrict_elec_flows_v2(n: pypsa.Network, line_limits_fp: str) -> pypsa.Network:
-    logger.info(
-        "Restricting electricity flows based on line limits from uncertainty scenarios."
-    )
+def restrict_elec_flows_v2(
+    n: pypsa.Network,
+    line_limits_fp: str,
+    explicitly_allocated_lines: list[str],
+    lower_bound: float = 0.95,
+    upper_bound: float = 1.05,
+) -> pypsa.Network:
+    """
+    Restrict electricity flows based on pre-calculated hourly per-unit line limits for certain links.
+
+    The flows are restricted to an envelope defined by the lower and upper bound multipliers applied to p_min_pu and p_max_pu.
+
+    Parameters
+    ----------
+    n : pypsa.Network
+        PyPSA network instance
+    line_limits_fp : str
+        File path to CSV containing line limits
+    explicitly_allocated_lines : list[str]
+        List of regex patterns to match the lines for which the limits should be applied.
+        Only these lines matching this pattern will be restricted.
+        For each pattern at least one match must be found in the line limits file.
+    lower_bound : float
+        Lower bound multiplier to apply to the line limits (default: 0.95).
+    upper_bound : float
+        Upper bound multiplier to apply to the line limits (default: 1.05).
+    """
+
+    # Only read the first row, as all rows are identical and we only need the column names
     line_limits = pd.read_csv(
         line_limits_fp,
         index_col=0,
         parse_dates=True,
-        usecols=[
-            "snapshot",
-            # GB <-> BE
-            "BE00-GB00-DC",
-            "GB00-BE00-DC",
-            # GB <-> DK
-            "DKW1-GB00-DC",
-            "GB00-DKW1-DC",
-            # GB <-> FR
-            "FR00-GB00-DC",
-            "GB00-FR00-DC",
-            # GB <-> DE
-            "DE00-GB00-DC",
-            "GB00-DE00-DC",
-            # GB <-> NL
-            "GB00-NL00-DC",
-            "NL00-GB00-DC",
-            # The following lines are not restricted, as they follow a different allocation method
-            # # GB <-> North Ireland
-            # "GB00-GBNI-DC",
-            # "GBNI-GB00-DC",
-            # # GB <-> IE
-            # "GB00-IE00-DC",
-            # "IE00-GB00-DC",
-            # # GB <-> NO
-            # "GB00-NOS0-DC",
-            # "NOS0-GB00-DC",
-        ],
+        nrows=1,
+    )
+
+    # Match the existing columns against the configured list
+    # using regex match patterns
+    matched_columns: list[str] = []
+    matches_count: dict[str, int] = {}
+    for regex_pattern in explicitly_allocated_lines:
+        matches = line_limits.columns[line_limits.columns.str.match(regex_pattern)]
+        matched_columns.extend(matches)
+        matches_count[regex_pattern] = len(matches)
+
+    # Check that each regex pattern matched at least one column
+    for regex_pattern, count in matches_count.items():
+        if count == 0:
+            raise ValueError(
+                f"The line regex pattern '{regex_pattern}' did not match any columns in the line limits file. Please check the pattern and the column names in the file."
+            )
+
+    # Load the file again, but only with the matched columns + snapshot column
+    line_limits = pd.read_csv(
+        line_limits_fp,
+        index_col=0,
+        parse_dates=True,
+        usecols=["snapshot"] + matched_columns,
     )
     links_i = line_limits.columns
 
-    n.components.links.dynamic["p_min_pu"][links_i] = np.clip(0.95 * line_limits, 0, 1)
-    n.components.links.dynamic["p_max_pu"][links_i] = np.clip(1.05 * line_limits, 0, 1)
+    logger.info(
+        "Restricting electricity flows based on line limits from uncertainty scenarios for the following explicitly allocated lines: "
+        + ", ".join(links_i)
+    )
+    n.components.links.dynamic["p_min_pu"].loc[line_limits.index, links_i] = np.clip(
+        lower_bound * line_limits, 0, 1
+    )
+    n.components.links.dynamic["p_max_pu"].loc[line_limits.index, links_i] = np.clip(
+        upper_bound * line_limits, 0, 1
+    )
     return n
 
 
@@ -185,10 +215,10 @@ if __name__ == "__main__":
         from scripts._helpers import mock_snakemake
 
         snakemake = mock_snakemake(
-            "prepare_line_limit_scenarios",
+            "prepare_sector_network_myopic_line_limited",
             opts="",
             clusters="all",
-            configfiles="config/config.tyndp.yaml",
+            configfiles="config/config.ngv.yaml",
             sector_opts="",
             planning_horizons="2030",
         )
@@ -202,6 +232,12 @@ if __name__ == "__main__":
     n = remove_components_added_in_solve_network_py(n)
     n = add_electrolysis_constraints(n)
     n = extend_primary_fuel_sources(n)
-    n = restrict_elec_flows_v2(n, snakemake.input["line_limits"])
+    n = restrict_elec_flows_v2(
+        n,
+        line_limits_fp=snakemake.input["line_limits"],
+        explicitly_allocated_lines=snakemake.params["explicitly_allocated_lines"],
+        lower_bound=0.95,
+        upper_bound=1.05,
+    )
     n.name = f"{n.name} status_quo"
     n.export_to_netcdf(snakemake.output["network"])
