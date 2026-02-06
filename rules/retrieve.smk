@@ -1366,15 +1366,16 @@ if (MOBILITY_PROFILES_DATASET := dataset_version("mobility_profiles"))["source"]
             copy2(input["kfz"], output["kfz"])
             copy2(input["pkw"], output["pkw"])
 
+
 if (NGV_IEM_ERRORS_DATASET := dataset_version("ngv_iem_errors"))["source"] in [
-    "archive"]:
+    "archive"
+]:
+
     rule retrieve_ngv_iem_errors:
         message:
             "Retrieving NGV IEM relative errors dataset..."
         input:
-            parquet=storage(
-                NGV_IEM_ERRORS_DATASET["url"]
-            ),
+            parquet=storage(NGV_IEM_ERRORS_DATASET["url"]),
         output:
             parquet=f"{NGV_IEM_ERRORS_DATASET['folder']}/relative_errors.parquet",
         run:
