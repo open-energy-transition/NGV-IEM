@@ -15,18 +15,17 @@ uncertainty_scenarios:
 - trader-forecast
 
 explicit_allocation:
-  to_from:
-    # All connections to and from buses that start with e.g. "GB"
-  - GB
-  connections_types:
-    # Carriers for the links; note, only Link components are supported, not Line components
+  # All connections to and from buses that start with e.g. "GB"
+  to_from: "GB"
+  # Carriers for the links; note, only Link components are supported, not Line components
+  connection_types:
   - DC      # Regular connections
   - DC_OH   # Offshore hubs
+  # List of all the connections for which the explicit allocation should be applied
+  # Connections may reference to one or more connection, by using regex wildcards for the name.
+  # E.g. "GBOH001-DKWOH01-Offshore DC-20[34]0" will apply to 
+  # "GBOH001-DKWOH01-Offshore DC-2030" and "GBOH001-DKWOH01-Offshore DC-2040"
   connections:
-    # List of all the connections for which the explicit allocation should be applied
-    # Connections may reference to one or more connection, by using regex wildcards for the name.
-    # E.g. "GBOH001-DKWOH01-Offshore DC-20[34]0" will apply to 
-    # "GBOH001-DKWOH01-Offshore DC-2030" and "GBOH001-DKWOH01-Offshore DC-2040"
   - BE00-GB00-DC
   - BEOH001-GB00-Offshore DC-20[34]0
   - BEOH001-GBOH003-Offshore DC-20[34]0

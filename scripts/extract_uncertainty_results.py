@@ -40,12 +40,15 @@ if __name__ == "__main__":
 
         # Extract all relevant links, DC and DC_OH (offshore hubs),
         # that are connected with one port to GB and the other port to another country (not GB)
+        connection_types = snakemake.params["explicit_allocation"]["connection_types"]
+        from_to_bus = snakemake.params["explicit_allocation"]["to_from"]
+
         links_s = n.components.links.static
         relevant_links = links_s.loc[
-            (links_s["carrier"].isin(["DC", "DC_OH"]))
+            (links_s["carrier"].isin(connection_types))
             & (
-                (links_s["bus0"].str.startswith("GB"))
-                ^ (links_s["bus1"].str.startswith("GB"))
+                (links_s["bus0"].str.startswith(from_to_bus))
+                ^ (links_s["bus1"].str.startswith(from_to_bus))
             )
         ].index
 
