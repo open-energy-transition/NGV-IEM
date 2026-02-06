@@ -201,6 +201,15 @@ def load_offshore_grid(
         country1=lambda x: x.bus1.str[:2],
     ).query("country0 in @countries and country1 in @countries")
 
+    # Allow bidirectional flows between offshore hubs and onshore buses
+    # for all scenarios, including NT, as requested by customer for reruns
+    mask = grid.loc[
+        (grid["carrier"].isin(["DC_OH"]))
+        & (grid["country0"] == grid["country1"])
+        & (grid["bus0"].str.contains("OH") ^ grid["bus1"].str.contains("OH"))
+    ].index
+    grid.loc[mask, "p_min_pu"] = -1
+
     return grid
 
 
