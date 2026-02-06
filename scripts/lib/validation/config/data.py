@@ -260,6 +260,10 @@ class DataConfig(BaseModel):
         default_factory=_DataSourceConfig,
         description="TYNDP visualisation platform data source configuration.",
     )
+    tyndp_mm_output_file: _DataSourceConfig = Field(
+        default_factory=_DataSourceConfig,
+        description="TYNDP MM output file data source configuration.",
+    )
     tyndp_cba_projects: _DataSourceConfig = Field(
         default_factory=_DataSourceConfig,
         description="TYNDP CBA projects data source configuration.",
@@ -267,4 +271,8 @@ class DataConfig(BaseModel):
     ngv_iem_errors: _DataSourceConfig = Field(
         default_factory=_DataSourceConfig,
         description="NGV IEM errors data source configuration.",
+    )
+    tyndp_nuclear_profiles: _DataSourceConfig = Field(
+        default_factory=_DataSourceConfig,
+        description="TYNDP nuclear profiles data source configuration.",
     )
