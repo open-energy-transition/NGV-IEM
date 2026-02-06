@@ -29,7 +29,7 @@ if __name__ == "__main__":
             clusters="all",
             sector_opts="",
             planning_horizons=2030,
-            configfiles="config/config.tyndp.yaml",
+            configfiles="config/config.ngv.yaml",
         )
     configure_logging(snakemake)
     set_scenario_config(snakemake)
@@ -38,11 +38,15 @@ if __name__ == "__main__":
     for n_fp in snakemake.input.networks:
         n = pypsa.Network(n_fp)
 
-        # Extract all relevant links (DC links from or to GB00)
+        # Extract all relevant links, DC and DC_OH (offshore hubs),
+        # that are connected with one port to GB and the other port to another country (not GB)
         links_s = n.components.links.static
         relevant_links = links_s.loc[
-            (links_s["carrier"] == "DC")
-            & ((links_s["bus0"] == "GB00") | (links_s["bus1"] == "GB00"))
+            (links_s["carrier"].isin(["DC", "DC_OH"]))
+            & (
+                (links_s["bus0"].str.startswith("GB"))
+                ^ (links_s["bus1"].str.startswith("GB"))
+            )
         ].index
 
         # Get dispatches for relevant links
