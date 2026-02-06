@@ -339,6 +339,7 @@ rule prepare_sector_network_myopic_line_limited:
         renewable_carriers_tyndp=config_provider(
             "electricity", "tyndp_renewable_carriers"
         ),
+        explicitly_allocated_lines=config_provider("explicit_allocation", "connections"),
     input:
         network=RESULTS
         + "networks/base_s_{clusters}__{sector_opts}_{planning_horizons}.nc",
