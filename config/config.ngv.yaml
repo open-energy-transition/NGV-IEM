@@ -14,6 +14,58 @@ run:
 uncertainty_scenarios:
 - trader-forecast
 
+explicit_allocation:
+  to_from:
+    # All connections to and from buses that start with e.g. "GB"
+  - GB
+  connections_types:
+    # Carriers for the links; note, only Link components are supported, not Line components
+  - DC      # Regular connections
+  - DC_OH   # Offshore hubs
+  connections:
+    # List of all the connections for which the explicit allocation should be applied
+    # Connections may reference to one or more connection, by using regex wildcards for the name.
+    # E.g. "GBOH001-DKWOH01-Offshore DC-20[34]0" will apply to 
+    # "GBOH001-DKWOH01-Offshore DC-2030" and "GBOH001-DKWOH01-Offshore DC-2040"
+  - BE00-GB00-DC
+  - BEOH001-GB00-Offshore DC-20[34]0
+  - BEOH001-GBOH003-Offshore DC-20[34]0
+  - DE00-GB00-DC
+  - DEOH001-GBOH001-Offshore DC-20[34]0
+  - DKW1-GB00-DC
+  - FR00-GB00-DC
+  - FROH001-GBOH003-Offshore DC-20[34]0
+  - FROH001-GBOH005-Offshore DC-20[34]0
+  - FROH002-GBOH005-Offshore DC-20[34]0
+  - GB00-BE00-DC
+  - GB00-DE00-DC
+  - GB00-DKW1-DC
+  - GB00-FR00-DC
+  - GB00-NL00-DC
+  - GBOH001-DKWOH01-Offshore DC-20[34]0
+  - GBOH001-NLOH001-Offshore DC-20[34]0
+  - NL00-GB00-DC
+  - NLOH001-GB00-Offshore DC-20[34]0
+  - NLOH001-GBOH003-Offshore DC-20[34]0
+    # The following connections are excluded, as these connectors follow a different
+    # market/allocation logic and can be optimised, rather than being explicitly allocated through bidding
+    # # GB <-> IE/Northern Ireland
+    # - GBNI-IE00-DC
+    # - GB00-IE00-DC
+    # - IE00-GB00-DC
+    # - IE00-GBNI-DC
+    # - GBOH004-IE00-Offshore DC-20[34]0
+    # - GBOH004-IEOH001-Offshore DC-20[34]0
+    # - GBOH005-IEOH001-Offshore DC-20[34]0
+    # # GB <-> NO
+    # - GB00-NOS0-DC
+    # - NOS0-GB00-DC
+    # - GBOH001-NOSOH01-Offshore DC-20[34]0
+    # - GBOH002-NOSOH01-Offshore DC-20[34]0
+    # - GBOH002-NOSOH02-Offshore DC-20[34]0
+    # - NOSOH02-GBOH006-Offshore DC-20[34]0
+
+
 snapshots:
   start: "2009-01-01"
   end: "2010-01-01"
