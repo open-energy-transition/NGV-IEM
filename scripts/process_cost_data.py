@@ -38,18 +38,20 @@ logger = logging.getLogger(__name__)
 CCS_CONFIGS = {
     "gas-ccgt-ccs": {
         "base_tech": "gas-ccgt-new",
+        "capture_tech": "cement capture",
         "fuel": "gas",
     },
     "coal-ccs": {
         "base_tech": "coal",
+        "capture_tech": "biomass CHP capture",
         "fuel": "coal",
     },
     "lignite-ccs": {
         "base_tech": "lignite",
+        "capture_tech": "biomass CHP capture",
         "fuel": "lignite",
     },
 }
-
 
 def overwrite_costs(costs: pd.DataFrame, custom_costs: pd.DataFrame) -> pd.DataFrame:
     """
@@ -326,9 +328,9 @@ def update_costs_tyndp(
 
 if __name__ == "__main__":
     if "snakemake" not in globals():
-        from _helpers import mock_snakemake
+        from scripts._helpers import mock_snakemake
 
-        snakemake = mock_snakemake("process_cost_data", planning_horizons=2030)
+        snakemake = mock_snakemake("process_cost_data", planning_horizons=2030, configfiles="config/config.ngv.yaml")
 
     cost_params = snakemake.params["costs"]
 
