@@ -10,7 +10,6 @@ Uses an already solved network and prepares it for uncertainty analysis by:
 
 import logging
 
-import numpy as np
 import pandas as pd
 import pypsa
 
@@ -68,62 +67,7 @@ def remove_components_added_in_solve_network_py(n: pypsa.Network) -> pypsa.Netwo
     return n
 
 
-def restrict_elec_flows(n: pypsa.Network, line_limits_fp: str) -> pypsa.Network:
-    """
-    Restrict electricity flows based on pre-calculated hourly line limits from and to GB.
-
-    Restrictions are put in place by limiting `p_min_pu` and `p_max_pu` of each line connected to GB.
-
-    Parameters
-    ----------
-    n : pypsa.Network
-        PyPSA network instance
-    line_limits_fp : str
-        File path to CSV containing line limits
-
-    Returns
-    -------
-    pypsa.Network
-        PyPSA network instance with restricted line flows
-    """
-    logger.info(
-        "Restricting electricity flows based on line limits from uncertainty scenarios."
-    )
-    line_limits = pd.read_csv(line_limits_fp, index_col=0, parse_dates=True)
-    line_p_max_pu = n.components.links.dynamic["p_max_pu"]
-    line_p_min_pu = n.components.links.dynamic["p_min_pu"]
-
-    # Ensure that all lines for which line limits are provided exist in the network
-    # (If not, then we are using the wrong input either for the network or the line limits)
-    missing_lines = line_limits.columns.difference(n.components.links.static.index)
-    if not missing_lines.empty:
-        raise ValueError(
-            f"The following lines from the line limits file are missing in the network: {missing_lines.tolist()}"
-        )
-
-    # Remove existing restrictions that are also part of the `line_limits` if there are any
-    # This is not problematic, as the new restrictions are build upon the old restrictions,
-    # i.e. the most restrictive limits will apply
-    existing_restricted_links = line_limits.columns.intersection(line_p_max_pu.columns)
-    if any(existing_restricted_links):
-        logger.info(
-            f"Removing existing link flow restrictions for GB-connected lines: {existing_restricted_links.tolist()}"
-        )
-        line_p_max_pu = line_p_max_pu.drop(columns=existing_restricted_links)
-        line_p_min_pu = line_p_min_pu.drop(columns=existing_restricted_links)
-
-    # Add new restrictions
-    n.components.links.dynamic["p_max_pu"] = pd.concat(
-        [line_p_max_pu, line_limits * 1.05], axis="columns"
-    )
-    n.components.links.dynamic["p_min_pu"] = pd.concat(
-        [line_p_min_pu, line_limits * 0.95], axis="columns"
-    )
-
-    return n
-
-
-def restrict_elec_flows_v2(
+def restrict_elec_flows(
     n: pypsa.Network,
     line_limits_fp: str,
     explicitly_allocated_lines: list[str],
@@ -182,18 +126,25 @@ def restrict_elec_flows_v2(
         parse_dates=True,
         usecols=["snapshot"] + matched_columns,
     )
-    links_i = line_limits.columns
 
     logger.info(
         "Restricting electricity flows based on line limits from uncertainty scenarios for the following explicitly allocated lines: "
-        + ", ".join(links_i)
+        + ", ".join(line_limits.columns)
     )
-    n.components.links.dynamic["p_min_pu"].loc[line_limits.index, links_i] = np.clip(
-        lower_bound * line_limits, 0, 1
-    )
-    n.components.links.dynamic["p_max_pu"].loc[line_limits.index, links_i] = np.clip(
-        upper_bound * line_limits, 0, 1
-    )
+
+    # Patch: We cannot use .loc[indx, columns] to assign to a subset of the columns in a DataFrame with a MultiIndex,
+    # as this will reset the "name" attribute of the columns index, which causes issues with how pypsa exports and then loads networks
+    # from netcdf. This is a known issue that is being actively worked on
+    line_limits.columns.name = "name"
+    line_limits = line_limits.reindex(n.components.links.dynamic["p_min_pu"].index)
+
+    n.components.links.dynamic["p_min_pu"][line_limits.columns] = (
+        lower_bound * line_limits
+    ).clip(0, 1)
+    n.components.links.dynamic["p_max_pu"][line_limits.columns] = (
+        upper_bound * line_limits
+    ).clip(0, 1)
+
     return n
 
 
@@ -232,7 +183,7 @@ if __name__ == "__main__":
     n = remove_components_added_in_solve_network_py(n)
     n = add_electrolysis_constraints(n)
     n = extend_primary_fuel_sources(n)
-    n = restrict_elec_flows_v2(
+    n = restrict_elec_flows(
         n,
         line_limits_fp=snakemake.input["line_limits"],
         explicitly_allocated_lines=snakemake.params["explicitly_allocated_lines"],
