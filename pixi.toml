@@ -180,6 +180,7 @@ cmd = """
 
 [feature.ngv.dependencies]
 hvplot = ">=0.12.2"
+pyarrow = ">=23.0.0"
 
 [environments]
 doc = { features = ["doc"], no-default-feature = true }
