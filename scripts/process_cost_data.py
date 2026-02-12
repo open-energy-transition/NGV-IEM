@@ -53,6 +53,7 @@ CCS_CONFIGS = {
     },
 }
 
+
 def overwrite_costs(costs: pd.DataFrame, custom_costs: pd.DataFrame) -> pd.DataFrame:
     """
     Apply custom cost modifications to costs data.
@@ -330,7 +331,11 @@ if __name__ == "__main__":
     if "snakemake" not in globals():
         from scripts._helpers import mock_snakemake
 
-        snakemake = mock_snakemake("process_cost_data", planning_horizons=2030, configfiles="config/config.ngv.yaml")
+        snakemake = mock_snakemake(
+            "process_cost_data",
+            planning_horizons=2030,
+            configfiles="config/config.ngv.yaml",
+        )
 
     cost_params = snakemake.params["costs"]
 
