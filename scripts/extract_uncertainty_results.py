@@ -65,10 +65,13 @@ if __name__ == "__main__":
 
     # Calculate line limits on a p.u. basis relative to the capacity of each link
     capacities = n.links.loc[consolidated.columns, "p_nom_opt"]
-    consolidated = consolidated.div(capacities, axis=1).abs()
+    consolidated = consolidated.div(capacities, axis=1)
 
-    # Set small values to 0
-    consolidated = consolidated.where(lambda x: x > 1e-4, 0)
+    # Set small values that are close to 0 (negative and positive) to 0
+    consolidated = consolidated.where(lambda x: x.abs() > 1e-4, 0)
+
+    # In case of 0 capacity, set to 0 to avoid NaN values
+    consolidated = consolidated.fillna(0)
 
     # Save to CSV
     consolidated.to_csv(snakemake.output["line_limits"])
