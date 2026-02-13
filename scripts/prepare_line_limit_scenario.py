@@ -10,6 +10,7 @@ Uses an already solved network and prepares it for uncertainty analysis by:
 
 import logging
 
+import numpy as np
 import pandas as pd
 import pypsa
 
@@ -132,18 +133,24 @@ def restrict_elec_flows(
         + ", ".join(line_limits.columns)
     )
 
-    # Patch: We cannot use .loc[indx, columns] to assign to a subset of the columns in a DataFrame with a MultiIndex,
+    # Patch: We cannot use .loc[index, columns] to assign to a subset of the columns in a DataFrame with a MultiIndex,
     # as this will reset the "name" attribute of the columns index, which causes issues with how pypsa exports and then loads networks
     # from netcdf. This is a known issue that is being actively worked on
     line_limits.columns.name = "name"
     line_limits = line_limits.reindex(n.components.links.dynamic["p_min_pu"].index)
 
+    # Calculate bounds symmetrically around 0
+    # For positive values: min=lower_bound*val, max=upper_bound*val
+    # For negative values: min=upper_bound*val (more negative), max=lower_bound*val (less negative)
+    lower_limits = lower_bound * line_limits
+    upper_limits = upper_bound * line_limits
+
     n.components.links.dynamic["p_min_pu"][line_limits.columns] = (
-        lower_bound * line_limits
-    ).clip(0, 1)
+        np.minimum(lower_limits, upper_limits)
+    ).clip(-1, 1)
     n.components.links.dynamic["p_max_pu"][line_limits.columns] = (
-        upper_bound * line_limits
-    ).clip(0, 1)
+        np.maximum(lower_limits, upper_limits)
+    ).clip(-1, 1)
 
     return n
 
