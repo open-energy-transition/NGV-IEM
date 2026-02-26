@@ -171,6 +171,7 @@ rule solve_sector_network_myopic:
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
         runtime=config_provider("solving", "runtime", default="6h"),
+        parallel_solving=1,
     benchmark:
         (
             RESULTS
@@ -220,6 +221,7 @@ rule solve_sector_network_myopic_no_ce:
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
         runtime=config_provider("solving", "runtime", default="6h"),
+        parallel_solving=1,
     benchmark:
         (
             RESULTS
@@ -294,6 +296,7 @@ rule solve_uncertainty_scenarios_myopic:
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
         runtime=config_provider("solving", "runtime", default="6h"),
+        parallel_solving=1,
     benchmark:
         (
             RESULTS
@@ -411,6 +414,7 @@ rule solve_sector_network_myopic_line_limited:
     resources:
         mem_mb=config_provider("solving", "mem_mb"),
         runtime=config_provider("solving", "runtime", default="6h"),
+        parallel_solving=1,
     benchmark:
         (
             RESULTS
