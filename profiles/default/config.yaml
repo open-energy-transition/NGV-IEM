@@ -5,3 +5,8 @@
 # See https://snakemake.readthedocs.io/en/stable/executing/cli.html#profiles
 
 logger: pypsa
+cores: 8
+storage-http-max-requests-per-second: 2
+keep-storage-local-copies: true
+resources:
+  parallel_solving: 1
