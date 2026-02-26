@@ -29,11 +29,7 @@ configfile: "config/config.default.yaml"
 configfile: "config/plotting.default.yaml"
 configfile: "config/benchmarking.default.yaml"
 configfile: "config/config.tyndp.yaml"
-
-
-if Path("config/config.yaml").exists():
-
-    configfile: "config/config.yaml"
+configfile: "config/config.ngv-iem.yaml"
 
 
 validate_config(config)

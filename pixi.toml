@@ -175,7 +175,7 @@ pytest = ">=8.4.2"
 [feature.ngv.tasks.model]
 args = [{"arg" = "dryrun", "default" = ""}]
 cmd = """
-    snakemake --cores all --configfile config/config.ngv.yaml --rerun-incomplete --keep-going {{ dryrun }}
+    snakemake --cores all --rerun-incomplete --keep-going {{ dryrun }}
 """
 
 [feature.ngv.dependencies]
